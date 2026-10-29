@@ -6,7 +6,8 @@
  *              diagrams         Y.Array of Y.Map { id, title, type, code: Y.Text, snapshot }
  *              whiteboard       Y.Map  slot → Excalidraw element (empty until drawn on); see patchWhiteboard
  *              whiteboardFiles  Y.Map  file id → image data
- *              other VaultFile fields as plain values, plus deletedAt
+ *              times            Y.Map  'u:<client>' / 'd:<client>' → last edit / delete time; see stamp
+ *              other VaultFile fields as plain values
  *   folders  Y.Map  path → true
  *
  * Text merges character by character, so people typing in the same note at the same time,
@@ -29,10 +30,34 @@ export const foldersOf = (doc: Y.Doc) => doc.getMap<boolean>('folders')
 
 const PLAIN = ['title', 'folder', 'layout', 'pinned', 'createdAt', 'updatedAt'] as const
 
+/**
+ * Edit and delete times are kept per browser and read as the latest of them. A single value
+ * set by two browsers at once would keep whichever Yjs picks by client id, not the later time,
+ * and could hide a note someone edited after it was deleted.
+ */
+function stamp(doc: Y.Doc, m: YFile, kind: 'u' | 'd', t: number) {
+  let times = m.get('times') as Y.Map<number> | undefined
+  if (!times) m.set('times', (times = new Y.Map<number>()))
+  const key = `${kind}:${doc.clientID}`
+  if ((times.get(key) ?? 0) < t) times.set(key, t)
+}
+
+function latest(m: YFile, kind: 'u' | 'd') {
+  let t = kind === 'u' ? ((m.get('updatedAt') as number) ?? 0) : 0
+  ;(m.get('times') as Y.Map<number> | undefined)?.forEach((v, k) => {
+    if (k.startsWith(kind + ':') && v > t) t = v
+  })
+  return t
+}
+
+export const updatedAtOf = (m: YFile) => latest(m, 'u')
+/** 0 when the note was never deleted. */
+export const deletedAtOf = (m: YFile) => latest(m, 'd')
+
 /** Deleted notes stay hidden unless someone edited them after the delete. */
 export function isVisible(m: YFile) {
-  const at = m.get('deletedAt') as number | undefined
-  return !at || (m.get('updatedAt') as number) > at
+  const at = deletedAtOf(m)
+  return !at || updatedAtOf(m) > at
 }
 
 export function readFile(m: YFile): VaultFile {
@@ -47,7 +72,7 @@ export function readFile(m: YFile): VaultFile {
     whiteboard: wb?.size ? sortElements([...newest(wb).values()].map((el) => structuredClone(el))) : null,
     layout: (m.get('layout') as VaultFile['layout']) ?? 'doc',
     createdAt: (m.get('createdAt') as number) ?? 0,
-    updatedAt: (m.get('updatedAt') as number) ?? 0,
+    updatedAt: updatedAtOf(m),
   }
   if (wbFiles?.size) f.whiteboardFiles = wbFiles.toJSON()
   if (m.get('pinned')) f.pinned = true
@@ -120,6 +145,7 @@ export function writeFile(doc: Y.Doc, f: VaultFile) {
   for (const el of (f.whiteboard ?? []) as Element[]) wb.set(el.id, structuredClone(el))
   m.set('whiteboard', wb)
   m.set('whiteboardFiles', new Y.Map(Object.entries(f.whiteboardFiles ?? {})))
+  m.set('times', new Y.Map<number>())
   filesOf(doc).set(f.id, m)
 }
 
@@ -143,8 +169,8 @@ export function patchFile(doc: Y.Doc, id: string, patch: Partial<VaultFile>) {
       changed = true
     }
   }
-  if (patch.updatedAt !== undefined) m.set('updatedAt', patch.updatedAt)
-  else if (changed) m.set('updatedAt', Date.now())
+  if (patch.updatedAt !== undefined) stamp(doc, m, 'u', patch.updatedAt)
+  else if (changed) stamp(doc, m, 'u', Date.now())
   return changed
 }
 
@@ -234,7 +260,7 @@ export function deleteFile(doc: Y.Doc, id: string, at = Date.now()) {
   const m = filesOf(doc).get(id)
   if (!m) return
   // Same millisecond as the last edit still counts as deleted.
-  m.set('deletedAt', Math.max(at, (m.get('updatedAt') as number) ?? 0))
+  stamp(doc, m, 'd', Math.max(at, updatedAtOf(m)))
 }
 
 /**
@@ -248,14 +274,14 @@ export function importFiles(doc: Y.Doc, files: VaultFile[], { onlyNewer = false,
     const m = map.get(f.id)
     if (deletes[f.id] !== undefined && deletes[f.id] >= f.updatedAt) continue
     if (!m) writeFile(doc, f)
-    else if (!onlyNewer || f.updatedAt > ((m.get('updatedAt') as number) ?? 0)) patchFile(doc, f.id, f)
+    else if (!onlyNewer || f.updatedAt > updatedAtOf(m)) patchFile(doc, f.id, f)
   }
   for (const [id, at] of Object.entries(deletes)) {
     // A deleted note usually has no copy left, but its tombstone must stay: a later import
     // compares against it, so an older copy elsewhere cannot bring the note back.
     if (!map.get(id)) writeFile(doc, { id, title: '', folder: '', doc: '', diagrams: [], whiteboard: null, layout: 'doc', createdAt: 0, updatedAt: 0 })
     const m = map.get(id)!
-    if (((m.get('updatedAt') as number) ?? 0) <= at && ((m.get('deletedAt') as number) ?? 0) < at) m.set('deletedAt', at)
+    if (updatedAtOf(m) <= at && deletedAtOf(m) < at) stamp(doc, m, 'd', at)
   }
 }
 
@@ -265,7 +291,7 @@ export function importDoc(to: Y.Doc, from: Y.Doc) {
   const deletes: Record<string, number> = {}
   filesOf(from).forEach((m, id) => {
     if (isVisible(m)) files.push(readFile(m))
-    else deletes[id] = m.get('deletedAt') as number
+    else deletes[id] = deletedAtOf(m)
   })
   importFiles(to, files, { onlyNewer: true, deletes })
   for (const path of foldersOf(from).keys()) foldersOf(to).set(path, true)

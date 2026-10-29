@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import type { VaultFile } from '../types'
 import { mapIndex } from './caret'
-import { deleteFile, filesOf, importDoc, importFiles, patchFile, readVault, setText, writeFile } from './vaultDoc'
+import { deleteFile, deletedAtOf, filesOf, importDoc, importFiles, patchFile, readVault, setText, writeFile } from './vaultDoc'
 
 const note = (id: string, extra: Partial<VaultFile> = {}): VaultFile => ({
   id,
@@ -142,6 +142,21 @@ describe('vault document', () => {
     expect(readVault(b).files.kept.doc).toBe('edited offline')
   })
 
+  it('reads the latest edit and delete time when browsers set them at once', () => {
+    // a edits at 90 and deletes at 100; b edits offline at 200. Whichever browser Yjs favours,
+    // b's later edit keeps the note.
+    for (const order of [0, 1]) {
+      const [a, b] = pair(note('n'))
+      patchFile(a, 'n', { doc: 'a', updatedAt: 90 })
+      deleteFile(a, 'n', 100)
+      patchFile(b, 'n', { doc: 'b', updatedAt: 200 })
+      if (order) exchange(b, a)
+      else exchange(a, b)
+      expect(readVault(a).files.n?.updatedAt).toBe(200)
+      expect(readVault(b).files.n?.updatedAt).toBe(200)
+    }
+  })
+
   it('imports an older vault: newer edits win, tombstones apply', () => {
     const server = new Y.Doc()
     writeFile(server, note('a', { doc: 'server', updatedAt: 50 }))
@@ -156,7 +171,7 @@ describe('vault document', () => {
     importDoc(server, local)
     const files = readVault(server).files
     expect(Object.fromEntries(Object.values(files).map((f) => [f.id, f.doc]))).toEqual({ a: 'local newer', b: 'server', c: 'local only' })
-    expect(filesOf(server).get('x')!.get('deletedAt')).toBe(70)
+    expect(deletedAtOf(filesOf(server).get('x')!)).toBe(70)
   })
 })
 

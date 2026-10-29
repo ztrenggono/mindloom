@@ -6,7 +6,7 @@ import { findByTitle, uid } from './lib/links'
 import { idbGet, idbSetMany } from './lib/idb'
 import { CollabClient, type RemoteStatus } from './lib/collab'
 import { loadName, loadToken, saveName, saveToken, type LegacyPending, type LegacySnapshot } from './lib/sync'
-import { deleteFile, filesOf, foldersOf, importDoc, importFiles, isVisible, patchFile, readFile, readVault, textOf, touchedIds, writeFile } from './lib/vaultDoc'
+import { deleteFile, deletedAtOf, filesOf, foldersOf, importDoc, importFiles, isVisible, patchFile, readFile, readVault, textOf, touchedIds, writeFile } from './lib/vaultDoc'
 
 /** Pre-IndexedDB storage; read once to migrate, then left alone. */
 const LEGACY_KEY = 'inkvault:v1'
@@ -226,7 +226,10 @@ export function useVault() {
         onStatus: (remote) => setStatus((st) => ({ ...st, remote })),
         onSynced: () => {
           const merged = [...offline.current].filter((id) => touched.current.has(id))
-          const kept = [...offline.current].filter((id) => filesOf(d).get(id)?.get('deletedAt') && data.current.files[id])
+          const kept = [...offline.current].filter((id) => {
+            const m = filesOf(d).get(id)
+            return m && deletedAtOf(m) && data.current.files[id]
+          })
           if (merged.length || kept.length) setNotice({ merged: titlesOf(data.current.files, merged), kept: titlesOf(data.current.files, kept) })
           offline.current.clear()
           touched.current.clear()
