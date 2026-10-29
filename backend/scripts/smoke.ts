@@ -39,4 +39,16 @@ assert.equal(r.json.files.some((f: any) => f.id === 'b'), false)
 assert.equal((await post({ upserts: [{ title: 'no id' }] })).status, 400)
 assert.equal((await post('nope')).status, 400)
 
+// With API_TOKEN set, everything but /health needs the bearer token.
+const locked = createApp(db, [], 's3cret-token')
+const call = (path: string, auth?: string, init: RequestInit = {}) =>
+  locked.request(`/api${path}`, { ...init, headers: { 'content-type': 'application/json', ...(auth ? { authorization: auth } : {}) } })
+assert.equal((await call('/health')).status, 200)
+assert.equal((await call('/vault')).status, 401)
+assert.equal((await call('/vault', 'Bearer wrong-token')).status, 401)
+assert.deepEqual(await (await call('/vault', 'Bearer wrong-token')).json(), { error: 'Invalid token' })
+assert.equal((await call('/sync', undefined, { method: 'POST', body: '{}' })).status, 401)
+assert.equal((await call('/vault', 'Bearer s3cret-token')).status, 200)
+assert.equal((await call('/sync', 'Bearer s3cret-token', { method: 'POST', body: '{}' })).status, 200)
+
 console.log('smoke: all checks passed')

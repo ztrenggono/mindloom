@@ -3,7 +3,7 @@ import { seedState } from './seed'
 import { GRAPH_TAB, type Diagram, type VaultFile, type VaultState } from './types'
 import { findByTitle, uid } from './lib/links'
 import { idbGet, idbSetMany } from './lib/idb'
-import { acknowledge, buildRequest, diff, emptyPending, hasPending, merge, type Pending, type Snapshot } from './lib/sync'
+import { acknowledge, buildRequest, diff, emptyPending, hasPending, loadToken, merge, saveToken, type Pending, type Snapshot } from './lib/sync'
 
 /** Pre-IndexedDB storage; read once to migrate, then left alone. */
 const LEGACY_KEY = 'inkvault:v1'
@@ -16,7 +16,8 @@ const PULL_MS = 30_000
  */
 export interface SaveStatus {
   local: 'loading' | 'saving' | 'saved' | 'error'
-  remote: 'syncing' | 'synced' | 'pending' | 'offline'
+  /** `unauthorized`: the server wants an API token this browser does not have. */
+  remote: 'syncing' | 'synced' | 'pending' | 'offline' | 'unauthorized'
   error?: string
 }
 
@@ -123,6 +124,7 @@ export function useVault() {
   const saveTimer = useRef<number | undefined>(undefined)
   const syncTimer = useRef<number | undefined>(undefined)
   const syncing = useRef(false)
+  const token = useRef(loadToken())
 
   const persist = useCallback(async () => {
     try {
@@ -142,10 +144,15 @@ export function useVault() {
     try {
       const res = await fetch('/api/sync', {
         method: 'POST',
-        headers: { 'content-type': 'application/json' },
+        headers: { 'content-type': 'application/json', ...(token.current && { authorization: `Bearer ${token.current}` }) },
         body: JSON.stringify(sent),
         signal: AbortSignal.timeout(15_000),
       })
+      if (res.status === 401) {
+        // Retrying cannot help until a token is entered; setToken pushes again.
+        setStatus((st) => ({ ...st, remote: 'unauthorized' }))
+        return
+      }
       if (!res.ok) throw new Error(`Server replied ${res.status}`)
       const snap = (await res.json()) as Snapshot
       const acked = acknowledge(stateRef.current, pending.current, sent)
@@ -214,7 +221,8 @@ export function useVault() {
     pending.current = diff(prev.current, state, pending.current)
     prev.current = state
     if (hasPending(pending.current)) fresh.current = false
-    setStatus((st) => ({ ...st, local: st.local === 'error' ? 'error' : 'saving', remote: st.remote === 'offline' ? 'offline' : 'pending' }))
+    // An unauthorized server stays so until a token is entered.
+    setStatus((st) => ({ ...st, local: st.local === 'error' ? 'error' : 'saving', remote: st.remote === 'offline' || st.remote === 'unauthorized' ? st.remote : 'pending' }))
     window.clearTimeout(saveTimer.current)
     saveTimer.current = window.setTimeout(persist, 250)
     window.clearTimeout(syncTimer.current)
@@ -307,7 +315,16 @@ export function useVault() {
     [state.files, api],
   )
 
-  return { state, status, retrySync: push, ...api, createFile, upsertDiagram, rename }
+  const setToken = useCallback(
+    (t: string) => {
+      token.current = t.trim()
+      saveToken(token.current)
+      void push()
+    },
+    [push],
+  )
+
+  return { state, status, retrySync: push, setToken, ...api, createFile, upsertDiagram, rename }
 }
 
 export type Vault = ReturnType<typeof useVault>

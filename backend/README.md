@@ -25,6 +25,11 @@ The Vite dev server proxies `/api` to `http://localhost:8787`, so open the front
 | GET    | `/api/vault`  | Returns every file, deletion tombstone and the folder list. |
 | POST   | `/api/sync`   | Applies `{ upserts, deletes, folders }` and returns the same shape as `/api/vault`. |
 
+When `API_TOKEN` is set, every route except `/api/health` needs `Authorization: Bearer <token>` and
+answers 401 without it. The frontend asks for the token the first time it gets a 401 (click
+"enter server token" in the status bar) and keeps it in that browser's localStorage. With no
+`API_TOKEN` the API is open and logs a warning at startup.
+
 Conflicts resolve per file by last write wins on `updatedAt`. A delete is kept as a tombstone, so
 an older copy of the file on another device cannot bring it back. Open tabs and the theme stay in
 each browser and are not synced.

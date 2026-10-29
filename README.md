@@ -42,6 +42,9 @@ docker compose down -v           # stop and delete all data
 ```
 
 To change the port or database password, copy `infra/.env.example` to `infra/.env` and edit it.
+Before exposing the app beyond your machine, also set `API_TOKEN` there (for example
+`openssl rand -hex 32`). Without it, anyone who can reach the server can read and change the vault.
+Each browser asks for the token once, from the status bar.
 
 ## Development
 
