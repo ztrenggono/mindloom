@@ -1,0 +1,14 @@
+# HTTPS in front of the web container. Used only with COMPOSE_PROFILES=https (see .env.example).
+#
+# DOMAIN is the name or IP address people type in the browser. TLS picks the certificate:
+#   internal          Caddy's own certificate authority. Works on an office network with no public
+#                     DNS; each computer has to trust Caddy's root certificate once (see README).
+#   you@example.com   A free Let's Encrypt certificate. Needs DOMAIN to be a real domain that points
+#                     at this server, with ports 80 and 443 reachable from the internet.
+# Plain http:// requests are redirected to https:// automatically.
+
+{$DOMAIN:localhost} {
+	tls {$TLS:internal}
+	encode gzip
+	reverse_proxy web:80
+}

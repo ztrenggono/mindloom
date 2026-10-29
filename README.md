@@ -32,6 +32,7 @@ Open http://localhost:8080. The first start builds the images, so it takes a few
 | `web`     | The built app on nginx, proxying `/api`       | `localhost:8080`   |
 | `backend` | Sync API (Node + Hono)                        | Only inside Docker |
 | `db`      | PostgreSQL 16, data in the `pgdata` volume    | Only inside Docker |
+| `caddy`   | HTTPS in front of `web` (optional, see below) | `:80`, `:443`      |
 
 Useful commands:
 
@@ -42,14 +43,17 @@ docker compose down -v           # stop and delete all data
 ```
 
 To change the port or database password, copy `infra/.env.example` to `infra/.env` and edit it.
-Before exposing the app beyond your machine, also set `API_TOKEN` there (for example
-`openssl rand -hex 32`). Without it, anyone who can reach the server can read and change the vault.
-Each browser asks for the token once, from the status bar.
+
+**On a server other people can reach**, also set `API_TOKEN` and turn on HTTPS. Without them,
+anyone on the network can read and change the vault. [docs/deployment.md](docs/deployment.md)
+walks through it: the token, HTTPS with Caddy (office network or public domain), trusting the
+certificate, backups and troubleshooting.
 
 ## Development
 
 Hot-reload setup, checks and the project layout are in [docs/development.md](docs/development.md).
-Feature overview: [docs/features.md](docs/features.md). Backend API: [backend/README.md](backend/README.md).
+Feature overview: [docs/features.md](docs/features.md). Running on a shared server:
+[docs/deployment.md](docs/deployment.md). Backend API: [backend/README.md](backend/README.md).
 
 ## Contributing
 
