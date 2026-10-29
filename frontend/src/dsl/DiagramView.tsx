@@ -10,7 +10,7 @@ import { renderSequence } from './SeqRender'
 import { ArrowDefs, SvgIcon, textW } from './shared'
 
 const MIN_FIT = 0.6
-const ANIMATE_KEY = 'inkvault:animateLines'
+const ANIMATE_KEY = 'mindloom:animateLines'
 
 function readAnimate() {
   try {

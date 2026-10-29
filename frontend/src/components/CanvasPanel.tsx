@@ -284,7 +284,7 @@ function setTitleLine(code: string, title: string) {
 }
 
 type CodeSide = 'left' | 'right'
-const CODE_SIDE_KEY = 'inkvault:codeSide'
+const CODE_SIDE_KEY = 'mindloom:codeSide'
 
 function readCodeSide(): CodeSide {
   try {

@@ -1,5 +1,5 @@
 {
-  "name": "inkvault-backend",
+  "name": "mindloom-backend",
   "private": true,
   "license": "GPL-3.0-or-later",
   "engines": {
@@ -10,7 +10,7 @@
   "scripts": {
     "dev": "node --watch --env-file-if-exists=.env src/index.ts",
     "start": "node --env-file-if-exists=.env src/index.ts",
-    "db:up": "docker compose up -d",
+    "db:up": "docker compose -f ../infra/docker-compose.dev.yml up -d",
     "typecheck": "tsc --noEmit",
     "smoke": "node scripts/smoke.ts"
   },

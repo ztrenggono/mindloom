@@ -74,7 +74,7 @@ export function Sidebar({ vault, view, query, setQuery }: Props) {
   const onDrop = (e: DragEvent, folder: string) => {
     e.preventDefault()
     setDropTarget(null)
-    const id = e.dataTransfer.getData('text/inkvault-file')
+    const id = e.dataTransfer.getData('text/mindloom-file')
     if (id) vault.patch(id, { folder })
   }
   const dropProps = (path: string) => ({
@@ -92,7 +92,7 @@ export function Sidebar({ vault, view, query, setQuery }: Props) {
       className={'tree-item file' + (f.id === activeId ? ' active' : '')}
       style={{ paddingLeft: 12 + depth * 14 }}
       draggable
-      onDragStart={(e) => e.dataTransfer.setData('text/inkvault-file', f.id)}
+      onDragStart={(e) => e.dataTransfer.setData('text/mindloom-file', f.id)}
       onClick={(e) => vault.open(f.id, e.metaKey || e.ctrlKey)}
       onDoubleClick={() => setRenaming(f.id)}
       onContextMenu={(e) => {
@@ -170,7 +170,7 @@ export function Sidebar({ vault, view, query, setQuery }: Props) {
         </button>
       </div>
       <div className="vault-name" onClick={() => setSelFolder('')} {...dropProps('')}>
-        <Folder size={13} /> Inkvault
+        <Folder size={13} /> Mindloom
       </div>
       <div className={'tree' + (dropTarget === '' ? ' drop' : '')} {...dropProps('')}>
         {renderTree(tree, 0)}

@@ -66,7 +66,7 @@ export default function App() {
 
   const openGraph = () => vault.open(GRAPH_TAB, true)
 
-  const exportVault = () => download(URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })), 'inkvault-backup.json')
+  const exportVault = () => download(URL.createObjectURL(new Blob([JSON.stringify(state, null, 2)], { type: 'application/json' })), 'mindloom-backup.json')
 
   const onImport = async (list: FileList | null) => {
     if (!list) return
@@ -78,7 +78,7 @@ export default function App() {
           const s = JSON.parse(text) as VaultState
           if (s.files && confirm('Replace the whole vault with this backup?')) vault.replace(s)
         } catch {
-          alert('Not a valid Inkvault backup')
+          alert('Not a valid Mindloom backup')
         }
       } else if (/\.(eraser|txt|dsl)$/.test(f.name)) {
         const type: DiagramType = /^\s*\w+\s*(\[[^\]]*\])?\s*\{\s*\n\s*\w+\s+\w+/m.test(text) && /\.\w+\s*[<>-]/.test(text) ? 'erd' : /\bactivate\b|autoNumber/.test(text) ? 'sequence' : 'flowchart'

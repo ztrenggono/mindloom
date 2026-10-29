@@ -187,7 +187,7 @@ ${ERD_PESANAN}
 
 const WELCOME_DOC = `# Welcome
 
-Inkvault menggabungkan **dokumen + diagram-as-code + whiteboard** (gaya Eraser) dengan **vault catatan yang saling terhubung** (gaya Obsidian).
+Mindloom menggabungkan **dokumen + diagram-as-code + whiteboard** (gaya Eraser) dengan **vault catatan yang saling terhubung** (gaya Obsidian).
 
 #panduan
 

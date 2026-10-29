@@ -1,5 +1,5 @@
 /**
- * Wire types for the sync API. `VaultFile` mirrors inkvault/src/types.ts; the server
+ * Wire types for the sync API. `VaultFile` mirrors frontend/src/types.ts; the server
  * stores it as JSON and only reads `id` and `updatedAt`, so extra fields pass through.
  */
 export interface VaultFile {
