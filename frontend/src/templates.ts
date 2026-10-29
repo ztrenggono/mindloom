@@ -1684,4 +1684,371 @@ Approved? > Staged rollout 10 percent: yes
 Approved? > Fix bugs: rejected
 Staged rollout 10 percent > Full rollout`,
   },
+  /* ------------------------------------- More templates ------------------------------------- */
+  {
+    id: 'erd-hr-payroll',
+    category: 'database',
+    title: 'HR, Attendance & Payroll',
+    description: 'Employees, departments, attendance, leave and monthly payslips',
+    type: 'erd',
+    code: `title HR, Attendance & Payroll
+
+departments [icon: building, color: blue] {
+  id uuid pk
+  name varchar
+  manager_id uuid
+}
+
+employees [icon: user, color: blue] {
+  id uuid pk
+  department_id uuid
+  employee_no varchar unique
+  full_name varchar
+  position varchar
+  base_salary decimal
+  joined_at date
+}
+
+attendance [icon: clock, color: green] {
+  id uuid pk
+  employee_id uuid
+  work_date date
+  check_in timestamp
+  check_out timestamp
+  status varchar
+}
+
+leave_requests [icon: calendar, color: yellow] {
+  id uuid pk
+  employee_id uuid
+  approver_id uuid
+  kind varchar
+  starts_on date
+  ends_on date
+  status varchar
+}
+
+payroll_runs [icon: calendar-check, color: purple] {
+  id uuid pk
+  period varchar unique
+  closed_at timestamp
+}
+
+payslips [icon: receipt, color: purple] {
+  id uuid pk
+  payroll_run_id uuid
+  employee_id uuid
+  gross decimal
+  tax decimal
+  deductions decimal
+  net decimal
+}
+
+employees.department_id > departments.id
+departments.manager_id - employees.id
+attendance.employee_id > employees.id
+leave_requests.employee_id > employees.id
+leave_requests.approver_id > employees.id
+payslips.payroll_run_id > payroll_runs.id
+payslips.employee_id > employees.id`,
+  },
+  {
+    id: 'erd-crm',
+    category: 'database',
+    title: 'Sales CRM',
+    description: 'Accounts, contacts, deals in a pipeline and logged activities',
+    type: 'erd',
+    code: `title Sales CRM
+
+users [icon: user, color: gray] {
+  id uuid pk
+  name varchar
+  email varchar unique
+}
+
+accounts [icon: building, color: blue] {
+  id uuid pk
+  owner_id uuid
+  name varchar
+  industry varchar
+  website varchar
+}
+
+contacts [icon: contact, color: blue] {
+  id uuid pk
+  account_id uuid
+  name varchar
+  email varchar
+  phone varchar
+}
+
+pipeline_stages [icon: list-ordered, color: purple] {
+  id uuid pk
+  name varchar
+  position int
+  win_probability int
+}
+
+deals [icon: handshake, color: green] {
+  id uuid pk
+  account_id uuid
+  owner_id uuid
+  stage_id uuid
+  amount decimal
+  expected_close date
+}
+
+activities [icon: message-square, color: yellow] {
+  id uuid pk
+  deal_id uuid
+  contact_id uuid
+  user_id uuid
+  kind varchar
+  happened_at timestamp
+}
+
+accounts.owner_id > users.id
+contacts.account_id > accounts.id
+deals.account_id > accounts.id
+deals.owner_id > users.id
+deals.stage_id > pipeline_stages.id
+activities.deal_id > deals.id
+activities.contact_id > contacts.id
+activities.user_id > users.id`,
+  },
+  {
+    id: 'seq-qris-payment',
+    category: 'api',
+    title: 'QR Code Payment (QRIS)',
+    description: 'Dynamic QR at checkout, e-wallet payment and webhook confirmation',
+    type: 'sequence',
+    code: `title QR Code Payment (QRIS)
+autoNumber on
+
+Customer [icon: user, color: gray]
+Cashier App [icon: monitor-smartphone, color: blue]
+Backend [icon: server, color: green]
+Payment Gateway [icon: credit-card, color: purple]
+E-wallet App [icon: wallet, color: orange]
+
+Cashier App > Backend: Create order
+Backend > Payment Gateway: Create dynamic QR (amount, order id)
+Payment Gateway --> Backend: QR string + expiry
+Backend --> Cashier App: Show QR
+Customer > E-wallet App: Scan QR and confirm
+E-wallet App > Payment Gateway: Pay
+alt [label: paid before expiry] {
+  Payment Gateway > Backend: Webhook payment.succeeded (signed)
+  Backend > Backend: Verify signature, mark order paid once
+  Backend --> Payment Gateway: 200 OK
+  Backend --> Cashier App: Paid, print receipt
+}
+else [label: QR expired] {
+  Backend --> Cashier App: Expired, offer a new QR
+}`,
+  },
+  {
+    id: 'seq-idempotent-api',
+    category: 'api',
+    title: 'Idempotent API Request',
+    description: 'Idempotency keys so a retried request is not applied twice',
+    type: 'sequence',
+    code: `title Idempotent API Request
+
+Client [icon: smartphone, color: blue]
+API [icon: server, color: green]
+Idempotency Store [icon: redis, color: red]
+Database [icon: postgresql, color: blue]
+
+Client > API: POST /transfers (Idempotency-Key: k1)
+API > Idempotency Store: Reserve k1
+alt [label: new key] {
+  Idempotency Store --> API: Reserved
+  API > Database: Create transfer
+  Database --> API: Transfer 42
+  API > Idempotency Store: Save response for k1
+  API --> Client: 201 Transfer 42
+}
+else [label: retry with same key] {
+  Idempotency Store --> API: Stored response
+  API --> Client: 201 Transfer 42 (replayed)
+}
+else [label: first request still running] {
+  Idempotency Store --> API: In progress
+  API --> Client: 409 Retry later
+}`,
+  },
+  {
+    id: 'cloud-observability',
+    category: 'devops',
+    title: 'Observability Stack',
+    description: 'OpenTelemetry collector feeding metrics, logs and traces into Grafana',
+    type: 'cloud',
+    code: `title Observability Stack
+direction right
+
+Services [color: blue] {
+  API [icon: nodejs]
+  Worker [icon: python]
+  Web App [icon: react]
+}
+
+Collector [icon: opentelemetry, color: purple]
+
+Storage [color: green] {
+  Prometheus [icon: prometheus]
+  Logs [icon: elasticsearch]
+  Traces [icon: jaeger]
+}
+
+Grafana [icon: grafana, color: orange]
+On-call [icon: pagerduty, color: red]
+
+API, Worker, Web App > Collector: OTLP
+Collector > Prometheus: metrics
+Collector > Logs: logs
+Collector > Traces: traces
+Prometheus, Logs, Traces > Grafana
+Grafana > On-call: alerts`,
+  },
+  {
+    id: 'flow-support-ticket',
+    category: 'product',
+    title: 'Support Ticket Lifecycle',
+    description: 'Triage, priority, escalation to engineering and closing the loop',
+    type: 'flowchart',
+    code: `title Support Ticket Lifecycle
+direction right
+
+New ticket [shape: oval, icon: inbox, color: gray]
+Triage [icon: list-filter, color: blue]
+Known issue? [shape: diamond, icon: circle-help, color: yellow]
+Reply with fix [icon: message-square, color: green]
+Urgent? [shape: diamond, icon: circle-help, color: yellow]
+Page on-call [icon: siren, color: red]
+Escalate to engineering [icon: bug, color: orange]
+Fix shipped [icon: rocket, color: green]
+Customer confirms [icon: thumbs-up, color: green]
+Closed [shape: oval, icon: check, color: green]
+
+New ticket > Triage > Known issue?
+Known issue? > Reply with fix: yes
+Known issue? > Urgent?: no
+Urgent? > Page on-call: yes
+Urgent? > Escalate to engineering: no
+Page on-call > Escalate to engineering
+Escalate to engineering > Fix shipped > Reply with fix
+Reply with fix > Customer confirms > Closed`,
+  },
+  {
+    id: 'flow-etl-pipeline',
+    category: 'ai',
+    title: 'Batch ETL Pipeline',
+    description: 'Extract from sources, validate, transform with dbt and load a warehouse',
+    type: 'flowchart',
+    code: `title Batch ETL Pipeline
+direction right
+
+Sources [color: gray] {
+  App DB [icon: postgresql]
+  Payments API [icon: stripe]
+  CSV uploads [icon: file-spreadsheet]
+}
+
+Scheduler [icon: apache-airflow, color: blue]
+Raw zone [icon: aws-s3, color: orange]
+Valid? [shape: diamond, icon: circle-help, color: yellow]
+Quarantine [icon: triangle-alert, color: red]
+Transform [icon: dbt, color: purple]
+Warehouse [shape: cylinder, icon: snowflake, color: blue]
+Dashboards [icon: metabase, color: green]
+
+Scheduler > App DB, Payments API, CSV uploads: extract nightly
+App DB, Payments API, CSV uploads > Raw zone
+Raw zone > Valid?
+Valid? > Transform: yes
+Valid? > Quarantine: no
+Transform > Warehouse > Dashboards`,
+  },
+  {
+    id: 'seq-biometric-login',
+    category: 'mobile',
+    title: 'Biometric Login',
+    description: 'Face or fingerprint unlocks a device key that signs a server challenge',
+    type: 'sequence',
+    code: `title Biometric Login
+
+User [icon: user, color: gray]
+Mobile App [icon: smartphone, color: blue]
+Secure Enclave [icon: fingerprint, color: purple]
+Auth API [icon: shield, color: green]
+
+Mobile App > Auth API: Request login challenge
+Auth API --> Mobile App: Nonce
+Mobile App > User: Prompt Face ID or fingerprint
+User > Mobile App: Biometric check
+alt [label: matched] {
+  Mobile App > Secure Enclave: Sign nonce with device key
+  Secure Enclave --> Mobile App: Signature
+  Mobile App > Auth API: Device id + signature
+  Auth API > Auth API: Verify with stored public key
+  Auth API --> Mobile App: Access and refresh tokens
+}
+else [label: failed three times] {
+  Mobile App --> User: Fall back to password
+}`,
+  },
+  {
+    id: 'mind-threat-model',
+    category: 'security',
+    title: 'Threat Model (STRIDE)',
+    description: 'STRIDE categories with example threats and mitigations to review',
+    type: 'mindmap',
+    code: `title Threat Model (STRIDE)
+
+Payment service [icon: shield]
+  Spoofing [icon: user-x, color: red]
+    Stolen session tokens
+    Mitigation: short-lived JWT + MFA
+  Tampering [icon: file-warning, color: orange]
+    Amount changed in transit
+    Mitigation: TLS + signed webhooks
+  Repudiation [icon: file-question, color: yellow]
+    User denies a transfer
+    Mitigation: append-only audit log
+  Information disclosure [icon: eye, color: purple]
+    Card data in logs
+    Mitigation: tokenize and redact
+  Denial of service [icon: zap-off, color: blue]
+    Checkout flooded by bots
+    Mitigation: rate limits + WAF
+  Elevation of privilege [icon: key-round, color: green]
+    Support role edits balances
+    Mitigation: RBAC + four-eyes approval`,
+  },
+  {
+    id: 'mind-sprint-planning',
+    category: 'product',
+    title: 'Sprint Planning',
+    description: 'Goal, committed work, risks and the definition of done for one sprint',
+    type: 'mindmap',
+    code: `title Sprint Planning
+
+Sprint 14 [icon: calendar]
+  Goal [icon: target, color: green]
+    Self-serve checkout live
+  Committed [icon: list-checks, color: blue]
+    QR payment
+    Order emails
+    Refund button
+  Stretch [icon: list-plus, color: gray]
+    Saved addresses
+  Risks [icon: triangle-alert, color: red]
+    Gateway sandbox is unstable
+    One engineer on leave
+  Definition of done [icon: badge-check, color: purple]
+    Tests and review passed
+    Feature flag on in staging
+    Docs updated`,
+  },
 ]

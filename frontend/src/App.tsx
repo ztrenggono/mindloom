@@ -9,6 +9,8 @@ import { CommandPalette, type Command } from './components/CommandPalette'
 import { FileView } from './components/FileView'
 import { backlinks, extractLinks, findByTitle, uid } from './lib/links'
 import { wordCount } from './lib/markdown'
+import type { Hit } from './lib/search'
+import { convertMermaidFences, fromMermaid } from './dsl/mermaid'
 import { download } from './dsl/DiagramView'
 import { TEMPLATES } from './components/CanvasPanel'
 import { SaveIndicator } from './components/SaveIndicator'
@@ -35,7 +37,8 @@ export default function App() {
   const [palette, setPalette] = useState<null | 'commands' | 'files'>(null)
   const [modes, setModes] = useState<Record<string, 'edit' | 'read'>>({})
   const [activeDiagram, setActiveDiagram] = useState<Record<string, string>>({})
-  const [scrollTo, setScrollTo] = useState<{ line: number; n: number } | undefined>()
+  // Tied to a file, so opening another note later does not replay an old jump.
+  const [scrollTo, setScrollTo] = useState<{ fileId: string; line: number; n: number } | undefined>()
   const importRef = useRef<HTMLInputElement>(null)
 
   const file = state.activeTab && state.activeTab !== GRAPH_TAB ? (state.files[state.activeTab] ?? null) : null
@@ -80,11 +83,19 @@ export default function App() {
         } catch {
           alert('Not a valid Mindloom backup')
         }
+      } else if (/\.(mmd|mermaid)$/.test(f.name)) {
+        const d = fromMermaid(text)
+        if (!d) {
+          alert(`${f.name}: only Mermaid flowcharts, sequence diagrams, ER diagrams and mind maps can be imported`)
+          continue
+        }
+        const name = d.title ?? base
+        vault.createFile(name, file?.folder ?? '', { layout: 'canvas', doc: `# ${name}\n\nImported from \`${f.name}\`.\n`, diagrams: [{ id: uid(), title: name, type: d.type, code: d.code }] })
       } else if (/\.(eraser|txt|dsl)$/.test(f.name)) {
         const type: DiagramType = /^\s*\w+\s*(\[[^\]]*\])?\s*\{\s*\n\s*\w+\s+\w+/m.test(text) && /\.\w+\s*[<>-]/.test(text) ? 'erd' : /\bactivate\b|autoNumber/.test(text) ? 'sequence' : 'flowchart'
         vault.createFile(base, file?.folder ?? '', { layout: 'canvas', doc: `# ${base}\n\nImported from \`${f.name}\`.\n`, diagrams: [{ id: uid(), title: base, type, code: text }] })
       } else {
-        vault.createFile(base, file?.folder ?? '', { doc: text })
+        vault.createFile(base, file?.folder ?? '', { doc: convertMermaidFences(text) })
       }
     }
   }
@@ -94,6 +105,18 @@ export default function App() {
     const src = state.files[sourceId]
     const re = new RegExp(`(?<!\\[\\[)\\b(${file.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b(?!\\]\\])`, 'i')
     vault.patch(sourceId, { doc: src.doc.replace(re, '[[$1]]') })
+  }
+
+  const openHit = (fileId: string, hit: Hit) => {
+    vault.open(fileId)
+    const f = state.files[fileId]
+    if (hit.where === 'doc') {
+      if (f?.layout === 'canvas') vault.patch(fileId, { layout: 'both' })
+      setScrollTo({ fileId, line: hit.line, n: Date.now() })
+    } else if (hit.diagramId) {
+      if (f?.layout === 'doc') vault.patch(fileId, { layout: 'both' })
+      setActiveDiagram((s) => ({ ...s, [fileId]: hit.diagramId! }))
+    }
   }
 
   const showTag = (t: string) => {
@@ -119,7 +142,7 @@ export default function App() {
     { id: 'left', name: 'Toggle left sidebar', run: () => setLeftOpen((o) => !o) },
     { id: 'right', name: 'Toggle right sidebar', run: () => setRightOpen((o) => !o) },
     { id: 'theme', name: 'Toggle light / dark theme', run: () => vault.setTheme(state.theme === 'dark' ? 'light' : 'dark') },
-    { id: 'import', name: 'Import files (.md, .eraser, backup .json)', run: () => importRef.current?.click() },
+    { id: 'import', name: 'Import files (.md, .eraser, Mermaid .mmd, backup .json)', run: () => importRef.current?.click() },
     { id: 'export', name: 'Export vault backup (.json)', run: exportVault },
     { id: 'close', name: 'Close current tab', hotkey: 'Ctrl W', run: () => state.activeTab && vault.closeTab(state.activeTab) },
     { id: 'reset', name: 'Reset vault to sample notes', run: () => confirm('Delete every note and restore the samples?') && vault.reset() },
@@ -235,7 +258,7 @@ export default function App() {
             <FilePlus size={18} />
           </button>
           <div className="spacer" />
-          <button className="icon-btn" data-tip="Import .md / .eraser / backup" aria-label="Import .md / .eraser / backup" onClick={() => importRef.current?.click()}>
+          <button className="icon-btn" data-tip="Import .md / .eraser / .mmd / backup" aria-label="Import .md / .eraser / .mmd / backup" onClick={() => importRef.current?.click()}>
             <Upload size={18} />
           </button>
           <button className="icon-btn" data-tip="Export vault backup" aria-label="Export vault backup" onClick={exportVault}>
@@ -247,12 +270,12 @@ export default function App() {
           <button className="icon-btn" data-tip="Reset to sample vault" aria-label="Reset to sample vault" onClick={() => confirm('Delete every note and restore the samples?') && vault.reset()}>
             <RotateCcw size={18} />
           </button>
-          <input ref={importRef} type="file" multiple accept=".md,.markdown,.txt,.eraser,.json" hidden onChange={(e) => (onImport(e.target.files), (e.target.value = ''))} />
+          <input ref={importRef} type="file" multiple accept=".md,.markdown,.txt,.eraser,.mmd,.mermaid,.json" hidden onChange={(e) => (onImport(e.target.files), (e.target.value = ''))} />
         </nav>
 
         {leftMounted && (
           <aside className={'sidebar' + (leftOpen ? '' : ' closing')} inert={!leftOpen}>
-            <Sidebar vault={vault} view={side} query={query} setQuery={setQuery} />
+            <Sidebar vault={vault} view={side} query={query} setQuery={setQuery} onOpenHit={openHit} />
           </aside>
         )}
 
@@ -271,7 +294,7 @@ export default function App() {
               setActiveDiagram={(id) => setActiveDiagram((s) => ({ ...s, [file.id]: id }))}
               onOpenLink={(t, nt) => openTitle(null, t, nt)}
               onTag={showTag}
-              scrollToLine={scrollTo}
+              scrollToLine={scrollTo?.fileId === file.id ? scrollTo : undefined}
             />
           ) : (
             <div className="empty-state">
@@ -295,7 +318,7 @@ export default function App() {
               file={file}
               files={state.files}
               onOpen={onGraphOpen}
-              onHeading={(line) => setScrollTo({ line, n: Date.now() })}
+              onHeading={(line) => file && setScrollTo({ fileId: file.id, line, n: Date.now() })}
               onLinkMention={linkMention}
               onTag={showTag}
             />
