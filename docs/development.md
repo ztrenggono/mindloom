@@ -19,9 +19,14 @@ everything in the browser and shows "Saved locally, server offline".
 ## Checks
 
 ```bash
-cd frontend && npx tsc -p tsconfig.app.json --noEmit && npm run lint
+cd frontend && npx tsc -p tsconfig.app.json --noEmit && npm run lint && npm test
 cd backend && npm run typecheck && npm run smoke
 ```
+
+Frontend unit tests use Vitest and sit next to the code (`*.test.ts`). `src/templates.test.ts` checks
+that every template parses and passes the linter without warnings. GitHub Actions
+(`.github/workflows/ci.yml`) runs the same checks plus `npm run build` on every pull request and on
+pushes to `main`.
 
 ## Project layout
 
