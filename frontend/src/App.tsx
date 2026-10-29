@@ -305,7 +305,7 @@ export default function App() {
 
       <Tooltip />
       <footer className="statusbar">
-        <SaveIndicator status={vault.status} onRetry={vault.retrySync} onExport={exportVault} />
+        <SaveIndicator status={vault.status} onRetry={vault.retrySync} onExport={exportVault} onToken={vault.setToken} />
         {file ? (
           <>
             <span>{backlinks(state.files, file).length} backlinks</span>

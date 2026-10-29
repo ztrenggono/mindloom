@@ -116,3 +116,23 @@ export function merge(s: VaultState, p: Pending, snap: Snapshot, fresh: boolean)
   const activeTab = s.activeTab && (s.activeTab.startsWith('__') || files[s.activeTab]) ? s.activeTab : (openTabs[0] ?? null)
   return { state: { ...s, files, folders, openTabs, activeTab }, pending }
 }
+
+/** The backend's API_TOKEN, kept per browser. Storage can be blocked, so failures fall back to none. */
+const TOKEN_KEY = 'mindloom:token'
+
+export function loadToken(): string {
+  try {
+    return localStorage.getItem(TOKEN_KEY) ?? ''
+  } catch {
+    return ''
+  }
+}
+
+export function saveToken(token: string) {
+  try {
+    if (token) localStorage.setItem(TOKEN_KEY, token)
+    else localStorage.removeItem(TOKEN_KEY)
+  } catch {
+    /* blocked storage: the token lasts until reload */
+  }
+}

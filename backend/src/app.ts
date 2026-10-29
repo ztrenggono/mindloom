@@ -1,16 +1,22 @@
 import { Hono } from 'hono'
+import { bearerAuth } from 'hono/bearer-auth'
 import { cors } from 'hono/cors'
+import { HTTPException } from 'hono/http-exception'
 import { snapshot, sync, type Db } from './db.ts'
 import type { SyncRequest } from './types.ts'
 
-export function createApp(db: Db, origins: string[] = []) {
+/** With a `token`, every route except /health needs `Authorization: Bearer <token>`. */
+export function createApp(db: Db, origins: string[] = [], token?: string) {
   const app = new Hono().basePath('/api')
   if (origins.length) app.use('*', cors({ origin: origins }))
 
+  // Before the auth check, so container health checks need no token.
   app.get('/health', async (c) => {
     await db.query('SELECT 1')
     return c.json({ ok: true })
   })
+
+  if (token) app.use('*', bearerAuth({ token, noAuthenticationHeaderMessage: { error: 'Missing token' }, invalidTokenMessage: { error: 'Invalid token' } }))
 
   app.get('/vault', async (c) => c.json(await snapshot(db.query)))
 
@@ -22,6 +28,8 @@ export function createApp(db: Db, origins: string[] = []) {
   })
 
   app.onError((err, c) => {
+    // Auth failures (401) and other deliberate HTTP errors keep their status.
+    if (err instanceof HTTPException) return err.getResponse()
     console.error(err)
     return c.json({ error: 'Internal error' }, 500)
   })

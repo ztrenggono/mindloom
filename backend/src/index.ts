@@ -24,5 +24,7 @@ for (let attempt = 1; ; attempt++) {
 
 const origins = (process.env.CORS_ORIGINS ?? '').split(',').map((s) => s.trim()).filter(Boolean)
 const port = Number(process.env.PORT ?? 8787)
+const token = process.env.API_TOKEN?.trim() || undefined
+if (!token) console.warn('API_TOKEN is not set: anyone who can reach this API can read and change the vault.')
 
-serve({ fetch: createApp(db, origins).fetch, port }, (info) => console.log(`Mindloom API on http://localhost:${info.port}/api`))
+serve({ fetch: createApp(db, origins, token).fetch, port }, (info) => console.log(`Mindloom API on http://localhost:${info.port}/api`))
