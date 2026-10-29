@@ -8,10 +8,15 @@ explain them.
 - **Diagrams as code**: ERD, flowchart, sequence and cloud architecture, using Eraser-compatible syntax.
   Click a row or shape on the canvas to jump to its line of code. Syntax highlighting, syntax help and
   120+ tech logos (`icon: postgresql`, `icon: aws-s3`, `icon: k8s`).
-- **45 templates** from real systems, in 8 categories: database design, API and auth flows, cloud
+- **Mermaid in and out**: copy any diagram as Mermaid for GitHub, GitLab or Notion, and import
+  Mermaid flowcharts, sequence diagrams, ER diagrams and mind maps (`.mmd` files or ```` ```mermaid ````
+  blocks in imported Markdown).
+- **57 templates** from real systems, in 8 categories: database design, API and auth flows, cloud
   architecture, DevOps, product processes, AI and data, security, and mobile.
 - **Whiteboard** (Excalidraw) with icon and image upload.
 - **Notes**: folders, `[[wikilinks]]`, backlinks, graph view, tags, outline, command palette.
+- **Full-text search** (Ctrl+Shift+F) across notes and diagram code, with `"phrases"`, `#tag`,
+  `folder:` and `in:notes` / `in:diagrams`. Each result jumps to its line.
 - **Works offline**: edits save in the browser (IndexedDB) first and sync to PostgreSQL when the
   server is reachable. Several browsers can share one vault.
 
