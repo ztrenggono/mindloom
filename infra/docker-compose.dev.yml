@@ -1,0 +1,17 @@
+# Database only, for local development: `npm run db:up` in backend/.
+name: mindloom-dev
+
+services:
+  db:
+    image: postgres:16-alpine
+    environment:
+      POSTGRES_USER: mindloom
+      POSTGRES_PASSWORD: mindloom
+      POSTGRES_DB: mindloom
+    ports:
+      - '5432:5432'
+    volumes:
+      - pgdata:/var/lib/postgresql/data
+
+volumes:
+  pgdata:

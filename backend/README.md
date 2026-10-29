@@ -1,6 +1,6 @@
-# Inkvault backend
+# Mindloom backend
 
-Sync API for the Inkvault frontend (`../inkvault`). It keeps the vault's notes, diagrams and
+Sync API for the Mindloom frontend (`../frontend`). It keeps the vault's notes, diagrams and
 whiteboards in PostgreSQL. The frontend works offline from IndexedDB and syncs here when the API
 is up.
 
@@ -11,7 +11,7 @@ Stack: Node 22.18+ (runs TypeScript directly), [Hono](https://hono.dev), `pg`.
 ```bash
 cp .env.example .env
 npm install
-npm run db:up      # PostgreSQL 16 in Docker on :5432
+npm run db:up      # PostgreSQL 16 in Docker on :5432 (infra/docker-compose.dev.yml)
 npm run dev        # API on http://localhost:8787/api
 ```
 
