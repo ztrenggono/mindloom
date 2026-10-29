@@ -45,10 +45,10 @@ assert.deepEqual(await (await call('/vault', 'Bearer wrong-token')).json(), { er
 assert.equal((await call('/vault', 'Bearer s3cret-token')).status, 200)
 
 // --- Live collaboration over a real WebSocket.
-async function start(token?: string) {
-  const collab = await createCollab(db, token)
+async function start(token?: string, store: Db = db) {
+  const collab = await createCollab(store, token, { retryMs: 50 })
   const server = await new Promise<Server>((resolve) => {
-    const s = serve({ fetch: createApp(db, [], token).fetch, port: 0 }, () => resolve(s as Server)) as Server
+    const s = serve({ fetch: createApp(store, [], token).fetch, port: 0 }, () => resolve(s as Server)) as Server
   })
   collab.attach(server)
   const url = `ws://127.0.0.1:${(server.address() as AddressInfo).port}${PATH}`
@@ -98,7 +98,7 @@ function client(url: string, token = '') {
   awareness.on('update', ({ added, updated }: { added: number[]; updated: number[] }, origin: unknown) => {
     if (origin === 'local') send(MSG.awareness, (e) => encoding.writeVarUint8Array(e, awarenessProtocol.encodeAwarenessUpdate(awareness, [...added, ...updated])))
   })
-  return { doc, awareness, ws, synced, closed, settled: () => until(() => acks >= sent) }
+  return { doc, awareness, ws, synced, closed, settled: (ms?: number) => until(() => acks >= sent, ms) }
 }
 
 async function until(ok: () => boolean, ms = 3000) {
@@ -149,6 +149,33 @@ async function until(ok: () => boolean, ms = 3000) {
   const third = await start()
   assert.equal(third.collab.doc.getText('t').length, 520 + 'b says: hello from a'.length)
   await third.stop()
+}
+
+{
+  // A failed write is not acknowledged until the document is stored after all.
+  let down = false
+  const flaky: Db = {
+    query: (text, params) => (down && text.startsWith('INSERT') ? Promise.reject(new Error('disk full')) : query(text, params)),
+    tx: (fn) => db.tx((q) => fn((text, params) => (down && text.startsWith('INSERT') ? Promise.reject(new Error('disk full')) : q(text, params)))),
+  }
+  const live = await start(undefined, flaky)
+  const c = client(live.url)
+  await c.synced
+  await c.settled()
+  const log = console.error
+  console.error = () => {}
+  down = true
+  c.doc.getText('t').insert(0, 'kept? ')
+  await new Promise((r) => setTimeout(r, 300))
+  await assert.rejects(c.settled(200), /timed out/)
+  down = false
+  await c.settled()
+  console.error = log
+  c.ws.close()
+  await live.stop()
+  const after = await start()
+  assert.ok(after.collab.doc.getText('t').toString().startsWith('kept? '))
+  await after.stop()
 }
 
 {

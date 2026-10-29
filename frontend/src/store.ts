@@ -142,10 +142,12 @@ export function useVault() {
     if (!d) return
     try {
       let bytes = Y.encodeStateAsUpdate(d)
-      // Another tab may have saved edits this one has not seen; keep both.
+      // Another tab may have saved edits this one has not seen; keep both. Only when both copies
+      // come from the server's document: merging in a provisional one is what migration avoids,
+      // and right after it the stored copy is still the provisional one this tab replaced.
       if (!flags.current.provisional) {
-        const other = await idbGet<Uint8Array>('ydoc')
-        if (other) bytes = Y.mergeUpdates([other, bytes])
+        const [other, otherProvisional] = await Promise.all([idbGet<Uint8Array>('ydoc'), idbGet<boolean>('provisional')])
+        if (other && otherProvisional === false) bytes = Y.mergeUpdates([other, bytes])
       }
       const { openTabs, activeTab, theme } = stateRef.current
       await idbSetMany({ ydoc: bytes, ui: { openTabs, activeTab, theme }, provisional: flags.current.provisional, fresh: flags.current.fresh, offline: [...offline.current] })

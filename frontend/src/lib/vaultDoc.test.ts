@@ -100,6 +100,19 @@ describe('vault document', () => {
     ])
   })
 
+  it('keeps both browsers\' first strokes on a blank whiteboard', () => {
+    const [a, b] = pair(note('n'))
+    patchFile(a, 'n', { whiteboard: [{ id: 'ea', index: 'a0', version: 1 }], whiteboardFiles: { fa: 1 } })
+    patchFile(b, 'n', { whiteboard: [{ id: 'eb', index: 'a1', version: 1 }], whiteboardFiles: { fb: 2 } })
+    exchange(a, b)
+    const f = readVault(a).files.n
+    expect(f.whiteboard).toEqual([
+      { id: 'ea', index: 'a0', version: 1 },
+      { id: 'eb', index: 'a1', version: 1 },
+    ])
+    expect(f.whiteboardFiles).toEqual({ fa: 1, fb: 2 })
+  })
+
   it('copies elements, since Excalidraw edits them in place', () => {
     const doc = new Y.Doc()
     writeFile(doc, note('n', { whiteboard: [] }))

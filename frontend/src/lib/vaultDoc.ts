@@ -4,7 +4,7 @@
  *   files    Y.Map  id → Y.Map of one note:
  *              doc              Y.Text
  *              diagrams         Y.Array of Y.Map { id, title, type, code: Y.Text, snapshot }
- *              whiteboard       Y.Map  slot → Excalidraw element (absent until drawn on); see patchWhiteboard
+ *              whiteboard       Y.Map  slot → Excalidraw element (empty until drawn on); see patchWhiteboard
  *              whiteboardFiles  Y.Map  file id → image data
  *              other VaultFile fields as plain values, plus deletedAt
  *   folders  Y.Map  path → true
@@ -44,12 +44,12 @@ export function readFile(m: YFile): VaultFile {
     folder: (m.get('folder') as string) ?? '',
     doc: (m.get('doc') as Y.Text | undefined)?.toString() ?? '',
     diagrams: ((m.get('diagrams') as Y.Array<Y.Map<unknown>> | undefined)?.toArray() ?? []).map(readDiagram),
-    whiteboard: wb ? sortElements([...newest(wb).values()].map((el) => structuredClone(el))) : null,
+    whiteboard: wb?.size ? sortElements([...newest(wb).values()].map((el) => structuredClone(el))) : null,
     layout: (m.get('layout') as VaultFile['layout']) ?? 'doc',
     createdAt: (m.get('createdAt') as number) ?? 0,
     updatedAt: (m.get('updatedAt') as number) ?? 0,
   }
-  if (wbFiles) f.whiteboardFiles = wbFiles.toJSON()
+  if (wbFiles?.size) f.whiteboardFiles = wbFiles.toJSON()
   if (m.get('pinned')) f.pinned = true
   return f
 }
@@ -114,12 +114,12 @@ export function writeFile(doc: Y.Doc, f: VaultFile) {
   const diagrams = new Y.Array<Y.Map<unknown>>()
   diagrams.push((f.diagrams ?? []).map(newDiagram))
   m.set('diagrams', diagrams)
-  if (f.whiteboard) {
-    const wb = new Y.Map<Element>()
-    for (const el of f.whiteboard as Element[]) wb.set(el.id, structuredClone(el))
-    m.set('whiteboard', wb)
-  }
-  if (f.whiteboardFiles) m.set('whiteboardFiles', new Y.Map(Object.entries(f.whiteboardFiles)))
+  // Made now, even when empty: two browsers that each made the map on their first stroke would
+  // set the same key, and Yjs would keep only one of the two maps and everything drawn in it.
+  const wb = new Y.Map<Element>()
+  for (const el of (f.whiteboard ?? []) as Element[]) wb.set(el.id, structuredClone(el))
+  m.set('whiteboard', wb)
+  m.set('whiteboardFiles', new Y.Map(Object.entries(f.whiteboardFiles ?? {})))
   filesOf(doc).set(f.id, m)
 }
 

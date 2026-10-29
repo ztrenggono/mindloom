@@ -29,12 +29,15 @@ export const CLOSE_UNAUTHORIZED = 4401
 /** Stored updates are merged into one row after this many. */
 const COMPACT_AFTER = 500
 const PING_MS = 30_000
+const RETRY_MS = 5000
 /** Matches nginx's client_max_body_size, since whiteboard images travel inside updates. */
 const MAX_MESSAGE = 50 * 1024 * 1024
 
 interface Conn {
   authed: boolean
   alive: boolean
+  /** ACKs held back while updates could not be stored; sent once they are. */
+  owed: number
   /** Awareness client ids this connection controls, removed when it closes. */
   ids: Set<number>
 }
@@ -48,7 +51,7 @@ export interface Collab {
   close(): void
 }
 
-export async function createCollab(db: Db, token?: string): Promise<Collab> {
+export async function createCollab(db: Db, token?: string, { retryMs = RETRY_MS } = {}): Promise<Collab> {
   const doc = new Y.Doc()
   const { rows } = await db.query<{ data: Uint8Array }>('SELECT data FROM doc_updates ORDER BY id')
   Y.transact(doc, () => rows.forEach((r) => Y.applyUpdate(doc, r.data)), 'load')
@@ -61,6 +64,9 @@ export async function createCollab(db: Db, token?: string): Promise<Collab> {
 
   // Writes run one after another, so ACKs go out in order and only once their update is stored.
   let chain = Promise.resolve()
+  // Set when storing an update failed. The update is only in memory then, so ACKs wait and the
+  // whole document is stored instead, retried until the database takes it.
+  let unsaved = false
   const queue = (fn: () => Promise<unknown>) => {
     chain = chain.then(fn).then(
       () => undefined,
@@ -82,10 +88,35 @@ export async function createCollab(db: Db, token?: string): Promise<Collab> {
     syncProtocol.writeUpdate(enc, update)
     broadcast(encoding.toUint8Array(enc), origin)
     queue(async () => {
-      await db.query('INSERT INTO doc_updates (data) VALUES ($1)', [Buffer.from(update)])
-      if (++stored >= COMPACT_AFTER) await compact()
+      if (unsaved) return
+      try {
+        await db.query('INSERT INTO doc_updates (data) VALUES ($1)', [Buffer.from(update)])
+        if (++stored >= COMPACT_AFTER) await compact()
+      } catch (e) {
+        console.error('collab: storing an update failed, retrying', e)
+        unsaved = true
+        retry()
+      }
     })
   })
+
+  let retryTimer: NodeJS.Timeout | undefined
+  const retry = () => {
+    retryTimer = setTimeout(
+      () =>
+        queue(async () => {
+          try {
+            await compact()
+          } catch (e) {
+            console.error('collab: storing the document failed, retrying', e)
+            return retry()
+          }
+          unsaved = false
+          for (const [ws, c] of conns) for (; c.owed > 0; c.owed--) send(ws, ack)
+        }),
+      retryMs,
+    )
+  }
 
   /** Replaces the stored rows with one merged state. */
   const compact = () =>
@@ -130,7 +161,7 @@ export async function createCollab(db: Db, token?: string): Promise<Collab> {
       syncProtocol.readSyncMessage(dec, enc, doc, ws)
       if (encoding.length(enc) > 1) send(ws, encoding.toUint8Array(enc))
       // Queued after the update's own write, so the client hears back only once it is stored.
-      queue(async () => send(ws, ack))
+      queue(async () => (unsaved ? conn.owed++ : send(ws, ack)))
     } else if (type === MSG.awareness) {
       awarenessProtocol.applyAwarenessUpdate(awareness, decoding.readVarUint8Array(dec), ws)
     }
@@ -138,7 +169,7 @@ export async function createCollab(db: Db, token?: string): Promise<Collab> {
   }
 
   wss.on('connection', (ws: WebSocket) => {
-    const conn: Conn = { authed: !token, alive: true, ids: new Set() }
+    const conn: Conn = { authed: !token, alive: true, owed: 0, ids: new Set() }
     conns.set(ws, conn)
     if (conn.authed) welcome(ws)
     ws.on('pong', () => (conn.alive = true))
@@ -175,6 +206,7 @@ export async function createCollab(db: Db, token?: string): Promise<Collab> {
     flush: () => chain,
     close() {
       clearInterval(ping)
+      clearTimeout(retryTimer)
       for (const ws of conns.keys()) ws.terminate()
       wss.close()
     },
