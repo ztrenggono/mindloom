@@ -49,9 +49,19 @@ export async function migrate(q: Query) {
       value      jsonb NOT NULL,
       updated_at bigint NOT NULL
     )`)
+  // The live vault (see collab.ts): Yjs updates in order, merged into one row now and then.
+  await q(`
+    CREATE TABLE IF NOT EXISTS doc_updates (
+      id   bigserial PRIMARY KEY,
+      data bytea NOT NULL
+    )`)
 }
 
 /**
+ * Before live collaboration, browsers synced whole files through POST /api/sync, stored in
+ * `files` and `meta`. Those tables are now read only, by GET /api/vault, so a browser can move
+ * an older vault into the live document once. `sync` stays for that history and the tests.
+ *
  * Applies a client's changes with last-write-wins per file (by `updatedAt`), then
  * returns the full vault so the client can pull edits made on other devices.
  */

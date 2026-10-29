@@ -1,5 +1,7 @@
+import type { Server } from 'node:http'
 import { serve } from '@hono/node-server'
 import { createApp } from './app.ts'
+import { createCollab } from './collab.ts'
 import { migrate, pgDb } from './db.ts'
 
 const url = process.env.DATABASE_URL
@@ -27,4 +29,16 @@ const port = Number(process.env.PORT ?? 8787)
 const token = process.env.API_TOKEN?.trim() || undefined
 if (!token) console.warn('API_TOKEN is not set: anyone who can reach this API can read and change the vault.')
 
-serve({ fetch: createApp(db, origins, token).fetch, port }, (info) => console.log(`Mindloom API on http://localhost:${info.port}/api`))
+const collab = await createCollab(db, token)
+const server = serve({ fetch: createApp(db, origins, token).fetch, port }, (info) => console.log(`Mindloom API on http://localhost:${info.port}/api`))
+collab.attach(server as Server)
+
+// Stores updates still in flight before exiting, e.g. on `docker compose stop`.
+for (const sig of ['SIGTERM', 'SIGINT'] as const) {
+  process.once(sig, async () => {
+    collab.close()
+    await collab.flush()
+    await db.close()
+    process.exit(0)
+  })
+}
