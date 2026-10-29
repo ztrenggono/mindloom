@@ -1,7 +1,7 @@
 import dagre from '@dagrejs/dagre'
 import type { ReactNode } from 'react'
 import type { FlowDiagram } from './parse'
-import { colorOf, orthogonal, roundedPath, SvgIcon, textW, type Size } from './shared'
+import { colorOf, LinkBadge, orthogonal, roundedPath, SvgIcon, textW, type Size } from './shared'
 
 const RANKDIR = { right: 'LR', left: 'RL', down: 'TB', up: 'BT' } as const
 
@@ -144,6 +144,7 @@ export function renderFlow(d: FlowDiagram, selected?: number | null): Size & { b
         <text x={tx + (n.icon ? 22 : 0)} y={p.y + 4.5} className="d-node-label">
           {n.label}
         </text>
+        <LinkBadge to={n.link} x={x + p.width - 2} y={y + 2} />
       </g>
     )
   })

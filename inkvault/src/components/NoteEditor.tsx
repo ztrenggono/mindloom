@@ -63,7 +63,7 @@ function Reading({ file, onChange, onOpenLink, onTag, scrollToLine }: Omit<Props
           <div key={i} dangerouslySetInnerHTML={{ __html: s.html }} />
         ) : (
           <div key={i} className="md-diagram">
-            <DiagramView type={s.type} code={s.code} embedded title={`${file.title}-${s.type}`} />
+            <DiagramView type={s.type} code={s.code} embedded title={`${file.title}-${s.type}`} onOpenLink={onOpenLink} />
           </div>
         ),
       )}

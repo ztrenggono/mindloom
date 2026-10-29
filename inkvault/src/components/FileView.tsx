@@ -75,6 +75,9 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
   const canvas = (
     <CanvasPanel
       file={file}
+      files={vault.state.files}
+      titles={allTitles}
+      onOpenLink={onOpenLink}
       theme={vault.state.theme}
       active={activeDiagram}
       setActive={setActiveDiagram}

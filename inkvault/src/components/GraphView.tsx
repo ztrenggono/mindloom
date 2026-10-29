@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useRef, useState } from 'react'
 import type { VaultFile } from '../types'
-import { extractLinks, extractTags, findByTitle } from '../lib/links'
+import { extractTags, fileLinks, findByTitle } from '../lib/links'
 
 interface Props {
   files: Record<string, VaultFile>
@@ -33,7 +33,7 @@ export function GraphView({ files, activeId, focusId, showTags: initialTags = fa
 
   // Rebuild only when the link structure changes, not on every keystroke.
   const sig = useMemo(
-    () => Object.values(files).map((f) => f.id + '\u0001' + f.title + '\u0001' + extractLinks(f.doc).join('|') + '\u0001' + extractTags(f.doc).join(',')).join('\n'),
+    () => Object.values(files).map((f) => f.id + '\u0001' + f.title + '\u0001' + fileLinks(f).join('|') + '\u0001' + extractTags(f.doc).join(',')).join('\n'),
     [files],
   )
   const positions = useRef(new Map<string, { x: number; y: number }>())
@@ -52,7 +52,7 @@ export function GraphView({ files, activeId, focusId, showTags: initialTags = fa
     }
     for (const f of Object.values(files)) add('f:' + f.id, f.title, 'file', f.id)
     for (const f of Object.values(files)) {
-      for (const l of extractLinks(f.doc)) {
+      for (const l of fileLinks(f)) {
         const t = findByTitle(files, l)
         const to = t ? 'f:' + t.id : 'g:' + l.toLowerCase()
         if (!t) add(to, l, 'ghost')

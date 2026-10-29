@@ -50,6 +50,8 @@ export interface FlowNode {
   icon?: string
   color?: string
   group?: string
+  /** Title of a note this node opens, from `link: Note title`. */
+  link?: string
   /** Declaration line, or the first edge that mentions it. */
   line?: number
 }
@@ -130,6 +132,7 @@ export function parseFlow(code: string): FlowDiagram {
       icon: attrs.icon ?? prev?.icon,
       color: attrs.color ?? prev?.color,
       group: prev?.group ?? stack.at(-1),
+      link: attrs.link ?? prev?.link,
       line,
     })
   }
@@ -189,6 +192,7 @@ export interface ErdEntity {
   name: string
   icon?: string
   color?: string
+  link?: string
   columns: ErdColumn[]
   line?: number
 }
@@ -240,7 +244,7 @@ export function parseErd(code: string): ErdDiagram {
     if (text.endsWith('{')) {
       const { name, attrs } = nameAndAttrs(text.slice(0, -1))
       const prev = d.entities.get(name)
-      current = { name, icon: attrs.icon, color: attrs.color, columns: prev?.columns ?? [], line }
+      current = { name, icon: attrs.icon, color: attrs.color, link: attrs.link, columns: prev?.columns ?? [], line }
       d.entities.set(name, current)
       continue
     }
@@ -252,7 +256,7 @@ export function parseErd(code: string): ErdDiagram {
     const { name, attrs } = nameAndAttrs(text)
     if (/^[\w.-]+$/.test(name)) {
       const prev = d.entities.get(name)
-      d.entities.set(name, { name, icon: attrs.icon, color: attrs.color, columns: prev?.columns ?? [], line })
+      d.entities.set(name, { name, icon: attrs.icon, color: attrs.color, link: attrs.link, columns: prev?.columns ?? [], line })
     } else d.errors.push({ line, message: `Cannot read "${text}"` })
   }
   if (current) d.errors.push({ line: 0, message: `Unclosed entity "${current.name}"` })
@@ -265,11 +269,12 @@ export interface SeqParticipant {
   name: string
   icon?: string
   color?: string
+  link?: string
   line?: number
 }
 export type SeqItem =
   | { kind: 'msg'; from: string; to: string; op: string; label?: string; line: number }
-  | { kind: 'act'; who: string; on: boolean }
+  | { kind: 'act'; who: string; on: boolean; line: number }
   | { kind: 'block'; type: string; color?: string; sections: { label?: string; items: SeqItem[] }[]; line: number }
 export interface SeqDiagram {
   title?: string
@@ -302,7 +307,7 @@ export function parseSequence(code: string): SeqDiagram {
     if (/^(colorMode|styleMode|typeface)\b/i.test(text)) continue
     if ((m = /^(activate|deactivate)\s+(.+)$/i.exec(text))) {
       ensure(m[2].trim(), line)
-      items.push({ kind: 'act', who: m[2].trim(), on: m[1].toLowerCase() === 'activate' })
+      items.push({ kind: 'act', who: m[2].trim(), on: m[1].toLowerCase() === 'activate', line })
       continue
     }
     if ((m = BLOCK.exec(text))) {
@@ -349,10 +354,63 @@ export function parseSequence(code: string): SeqDiagram {
     const { name, attrs } = nameAndAttrs(text)
     if (name) {
       const existing = d.participants.find((p) => p.name === name)
-      if (existing) Object.assign(existing, { icon: attrs.icon, color: attrs.color, line })
-      else d.participants.push({ name, icon: attrs.icon, color: attrs.color, line })
+      if (existing) Object.assign(existing, { icon: attrs.icon, color: attrs.color, link: attrs.link, line })
+      else d.participants.push({ name, icon: attrs.icon, color: attrs.color, link: attrs.link, line })
     } else d.errors.push({ line, message: `Cannot read "${text}"` })
   }
   if (stack.length > 1) d.errors.push({ line: 0, message: 'Unclosed block' })
+  return d
+}
+
+/* ---------------------------------------- Mind map ---------------------------------------- */
+
+export interface MindNode {
+  label: string
+  icon?: string
+  color?: string
+  link?: string
+  line: number
+  depth: number
+  children: MindNode[]
+}
+export interface MindDiagram {
+  title?: string
+  roots: MindNode[]
+  errors: ParseError[]
+}
+
+/** An indented outline: each line is a node, its children are the lines indented below it. */
+export function parseMindmap(code: string): MindDiagram {
+  const d: MindDiagram = { roots: [], errors: [] }
+  const stack: { indent: number; node: MindNode }[] = []
+  code.split('\n').forEach((raw, i) => {
+    const line = i + 1
+    const src = raw.replace(/\/\/.*$/, '').replace(/\t/g, '  ')
+    const text = src.trim()
+    if (!text) return
+    let m: RegExpExecArray | null
+    if ((m = /^title\s+(.+)$/i.exec(text))) {
+      d.title = m[1]
+      return
+    }
+    if (/^(colorMode|styleMode|typeface)\b/i.test(text)) return
+    if (/[{}]\s*$/.test(text)) {
+      d.errors.push({ line, message: 'Mind maps use indentation instead of { }' })
+      return
+    }
+    const indent = src.length - src.trimStart().length
+    // Markdown bullets are allowed, so an outline pastes in as is.
+    const { name, attrs } = nameAndAttrs(text.replace(/^[-*+]\s+/, ''))
+    if (!name) {
+      d.errors.push({ line, message: `Cannot read "${text}"` })
+      return
+    }
+    while (stack.length && stack[stack.length - 1].indent >= indent) stack.pop()
+    const parent = stack.at(-1)?.node
+    const node: MindNode = { label: attrs.label ?? name, icon: attrs.icon, color: attrs.color, link: attrs.link, line, depth: parent ? parent.depth + 1 : 0, children: [] }
+    if (parent) parent.children.push(node)
+    else d.roots.push(node)
+    stack.push({ indent, node })
+  })
   return d
 }

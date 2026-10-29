@@ -1,10 +1,12 @@
-export type DiagramType = 'erd' | 'flowchart' | 'sequence' | 'cloud'
+export type DiagramType = 'erd' | 'flowchart' | 'sequence' | 'cloud' | 'mindmap'
 
 export interface Diagram {
   id: string
   title: string
   type: DiagramType
   code: string
+  /** Code saved by "Save snapshot", the baseline the diff view compares against. */
+  snapshot?: { code: string; at: number }
 }
 
 /** Same three layouts as Eraser: document only, split, or canvas only. */

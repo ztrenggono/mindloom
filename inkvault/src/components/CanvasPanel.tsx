@@ -1,5 +1,5 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
-import { Code2, GitBranch, PenTool, Plus, Table2, Trash2, Workflow, Cloud, X, CircleHelp, PanelLeft, PanelRight } from 'lucide-react'
+import { Brain, Code2, GitBranch, GitCompare, PenTool, Plus, Table2, Trash2, Workflow, Cloud, X, CircleHelp, PanelLeft, PanelRight, CircleAlert, TriangleAlert, Info, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Diagram, DiagramType, VaultFile } from '../types'
 import { DiagramView } from '../dsl/DiagramView'
 import { uid } from '../lib/links'
@@ -7,6 +7,8 @@ import { SyntaxHelp } from './SyntaxHelp'
 import { InsertPanel, type InsertAsset } from './InsertPanel'
 import type { Template } from '../templates'
 import { highlight } from '../dsl/highlight'
+import { lintDiagram, type Issue, type Severity } from '../dsl/lint'
+import { DiffView } from './DiffView'
 
 const Whiteboard = lazy(() => import('./Whiteboard'))
 
@@ -76,12 +78,34 @@ Web Server > Database
 Web Server > Cache
 Worker > Database`,
   },
+  mindmap: {
+    label: 'Mind Map',
+    code: `title Product Launch
+
+Product Launch [icon: rocket]
+  Research [icon: search]
+    Interviews
+    Competitors
+  Build [icon: hammer]
+    MVP scope
+    Beta testers
+  Marketing [icon: megaphone]
+    Landing page
+    Launch post
+  Metrics [icon: chart-line]
+    Sign-ups
+    Retention`,
+  },
 }
 
-export const TYPE_ICON: Record<DiagramType, typeof Table2> = { erd: Table2, flowchart: Workflow, sequence: GitBranch, cloud: Cloud }
+export const TYPE_ICON: Record<DiagramType, typeof Table2> = { erd: Table2, flowchart: Workflow, sequence: GitBranch, cloud: Cloud, mindmap: Brain }
 
 interface Props {
   file: VaultFile
+  /** Whole vault, for comparing against diagrams in other notes. */
+  files: Record<string, VaultFile>
+  titles: string[]
+  onOpenLink: (title: string, newTab: boolean) => void
   theme: 'dark' | 'light'
   onUpsert: (d: Diagram) => void
   onDiagrams: (ds: Diagram[]) => void
@@ -92,7 +116,8 @@ interface Props {
 
 export const WHITEBOARD = '__whiteboard__'
 
-export function CanvasPanel({ file, theme, onUpsert, onDiagrams, onWhiteboard, active, setActive }: Props) {
+export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, onDiagrams, onWhiteboard, active, setActive }: Props) {
+  const [diffOpen, setDiffOpen] = useState(false)
   // Fixed position so the panel escapes the tab bar's overflow clipping
   const [menu, setMenu] = useState<{ top: number; left: number; right: number } | null>(null)
   // An icon or image waiting for the whiteboard to mount and take it.
@@ -115,7 +140,10 @@ export function CanvasPanel({ file, theme, onUpsert, onDiagrams, onWhiteboard, a
   const diagram = file.diagrams.find((d) => d.id === tab)
   // Source line selected on the canvas or by the editor cursor.
   const [sel, setSel] = useState<number | null>(null)
-  useEffect(() => setSel(null), [tab])
+  useEffect(() => {
+    setSel(null)
+    setDiffOpen(false)
+  }, [tab])
 
   const pick = (line: number | null) => {
     setSel(line)
@@ -202,15 +230,22 @@ export function CanvasPanel({ file, theme, onUpsert, onDiagrams, onWhiteboard, a
         </div>
         <div className="spacer" />
         {diagram && (
-          <button className={'icon-btn' + (showCode ? ' on' : '')} title="Toggle code editor" onClick={() => setShowCode((s) => !s)}>
-            <Code2 size={15} />
-          </button>
+          <>
+            <button className={'icon-btn' + (diffOpen ? ' on' : '')} title="Compare versions" onClick={() => setDiffOpen((o) => !o)}>
+              <GitCompare size={15} />
+            </button>
+            <button className={'icon-btn' + (showCode ? ' on' : '')} title="Toggle code editor" onClick={() => setShowCode((s) => !s)}>
+              <Code2 size={15} />
+            </button>
+          </>
         )}
       </div>
       <div className="canvas-body">
-        {diagram ? (
+        {diagram && diffOpen ? (
+          <DiffView diagram={diagram} file={file} files={files} onUpsert={onUpsert} onClose={() => setDiffOpen(false)} />
+        ) : diagram ? (
           <>
-            {showCode && <CodeEditor key={diagram.id} diagram={diagram} side={codeSide} onFlipSide={flipCodeSide} selected={sel} onCursorLine={setSel} onChange={(code) => onUpsert({ ...diagram, code })} />}
+            {showCode && <CodeEditor key={diagram.id} diagram={diagram} titles={titles} side={codeSide} onFlipSide={flipCodeSide} selected={sel} onCursorLine={setSel} onChange={(code) => onUpsert({ ...diagram, code })} />}
             <div className="canvas-stage">
               <DiagramView
                 key={diagram.id}
@@ -220,6 +255,7 @@ export function CanvasPanel({ file, theme, onUpsert, onDiagrams, onWhiteboard, a
                 selectedLine={sel}
                 onSelectLine={pick}
                 onTitleChange={(t) => onUpsert({ ...diagram, code: setTitleLine(diagram.code, t) })}
+                onOpenLink={onOpenLink}
               />
             </div>
           </>
@@ -260,6 +296,7 @@ function readCodeSide(): CodeSide {
 
 interface EditorProps {
   diagram: Diagram
+  titles: string[]
   side: CodeSide
   onFlipSide: () => void
   onChange: (code: string) => void
@@ -267,7 +304,7 @@ interface EditorProps {
   onCursorLine: (line: number) => void
 }
 
-function CodeEditor({ diagram, side, onFlipSide, onChange, selected, onCursorLine }: EditorProps) {
+function CodeEditor({ diagram, titles, side, onFlipSide, onChange, selected, onCursorLine }: EditorProps) {
   const ta = useRef<HTMLTextAreaElement>(null)
   const gutter = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(340)
@@ -276,6 +313,13 @@ function CodeEditor({ diagram, side, onFlipSide, onChange, selected, onCursorLin
   const count = diagram.code.split('\n').length
   const hl = useRef<HTMLPreElement>(null)
   const colored = useMemo(() => highlight(diagram.code, diagram.type), [diagram.code, diagram.type])
+  const issues = useMemo(() => lintDiagram(diagram.type, diagram.code, titles), [diagram.type, diagram.code, titles])
+  // Worst severity per line, for the gutter and the line tint.
+  const worst = useMemo(() => {
+    const m = new Map<number, Severity>()
+    for (const i of issues) if (i.line && !m.has(i.line)) m.set(i.line, i.severity)
+    return m
+  }, [issues])
   const lineH = () => (ta.current ? parseFloat(getComputedStyle(ta.current).lineHeight) : 20)
   const PAD = 10
 
@@ -301,6 +345,15 @@ function CodeEditor({ diagram, side, onFlipSide, onChange, selected, onCursorLin
     if (top < el.scrollTop || top + lineH() > el.scrollTop + el.clientHeight) el.scrollTop = Math.max(0, top - el.clientHeight / 3)
   }, [selected])
 
+  const jumpTo = (line: number) => {
+    const el = ta.current
+    if (!el || !line) return
+    const pos = diagram.code.split('\n').slice(0, line - 1).join('\n').length + (line > 1 ? 1 : 0)
+    el.focus()
+    el.setSelectionRange(pos, pos)
+    onCursorLine(line)
+  }
+
   const cursorLine = (el: HTMLTextAreaElement) => onCursorLine(el.value.slice(0, el.selectionStart).split('\n').length)
 
   const startResize = (e: React.PointerEvent) => {
@@ -324,10 +377,13 @@ function CodeEditor({ diagram, side, onFlipSide, onChange, selected, onCursorLin
         <span className="muted">diagram-as-code</span>
       </div>
       <div className="code-wrap">
+        {[...worst].map(([line, sev]) => (
+          <div key={line} className={'line-issue sev-' + sev} style={{ top: PAD + (line - 1) * lineH() - scroll, height: lineH() }} />
+        ))}
         {selected != null && selected <= count && <div className="line-hl" style={{ top: PAD + (selected - 1) * lineH() - scroll, height: lineH() }} />}
         <div className="gutter" ref={gutter}>
           {Array.from({ length: count }, (_, i) => (
-            <div key={i} className={i + 1 === selected ? 'on' : undefined}>
+            <div key={i} className={i + 1 === selected ? 'on' : worst.has(i + 1) ? 'sev-' + worst.get(i + 1) : undefined}>
               {i + 1}
             </div>
           ))}
@@ -355,6 +411,7 @@ function CodeEditor({ diagram, side, onFlipSide, onChange, selected, onCursorLin
           />
         </div>
       </div>
+      <Problems issues={issues} onPick={jumpTo} />
       <div className="resize-x" onPointerDown={startResize} />
       <button className="icon-btn tiny side" title={side === 'left' ? 'Move editor to the right' : 'Move editor to the left'} onClick={onFlipSide}>
         {side === 'left' ? <PanelRight size={13} /> : <PanelLeft size={13} />}
@@ -366,6 +423,46 @@ function CodeEditor({ diagram, side, onFlipSide, onChange, selected, onCursorLin
         <Trash2 size={12} />
       </button>
       {help && <SyntaxHelp type={diagram.type} onClose={() => setHelp(false)} />}
+    </div>
+  )
+}
+
+const SEV_ICON: Record<Severity, typeof Info> = { error: CircleAlert, warning: TriangleAlert, info: Info }
+
+/** Lint results under the editor; clicking one moves the cursor to its line. */
+function Problems({ issues, onPick }: { issues: Issue[]; onPick: (line: number) => void }) {
+  const [open, setOpen] = useState(true)
+  if (!issues.length) return null
+  const count = (s: Severity) => issues.filter((i) => i.severity === s).length
+  return (
+    <div className="problems">
+      <button className="problems-head" onClick={() => setOpen((o) => !o)} aria-expanded={open}>
+        {open ? <ChevronDown size={13} /> : <ChevronRight size={13} />}
+        <span>Problems</span>
+        {(['error', 'warning', 'info'] as const).map((s) => {
+          const n = count(s)
+          const Icon = SEV_ICON[s]
+          return n ? (
+            <span key={s} className={'count sev-' + s}>
+              <Icon size={12} /> {n}
+            </span>
+          ) : null
+        })}
+      </button>
+      {open && (
+        <div className="problems-list">
+          {issues.map((i, k) => {
+            const Icon = SEV_ICON[i.severity]
+            return (
+              <button key={k} className={'problem sev-' + i.severity} onClick={() => onPick(i.line)}>
+                <Icon size={13} />
+                <span className="ln">{i.line ? `Ln ${i.line}` : ''}</span>
+                <span>{i.message}</span>
+              </button>
+            )
+          })}
+        </div>
+      )}
     </div>
   )
 }

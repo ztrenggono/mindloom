@@ -7,7 +7,7 @@ marked.setOptions({ gfm: true, breaks: false })
 
 export type Segment = { kind: 'html'; html: string } | { kind: 'diagram'; type: DiagramType; code: string }
 
-const FENCE = /^```(erd|flowchart|sequence|cloud)[^\n]*\n([\s\S]*?)^```[ \t]*$/gm
+const FENCE = /^```(erd|flowchart|sequence|cloud|mindmap)[^\n]*\n([\s\S]*?)^```[ \t]*$/gm
 
 /** Splits a note into rendered HTML and live diagram blocks. */
 export function renderNote(md: string): Segment[] {

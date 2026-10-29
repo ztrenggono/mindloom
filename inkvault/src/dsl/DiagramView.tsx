@@ -1,9 +1,11 @@
-import { useEffect, useMemo, useRef, useState, type PointerEvent as RPointerEvent } from 'react'
-import { Activity, Download, Maximize, Minus, Plus } from 'lucide-react'
+import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent } from 'react'
+import { Activity, ChevronLeft, ChevronRight, Download, Maximize, Minus, Plus, Presentation, X } from 'lucide-react'
 import type { DiagramType } from '../types'
-import { parseErd, parseFlow, parseSequence, type ParseError } from './parse'
+import { parseErd, parseFlow, parseMindmap, parseSequence, type ParseError } from './parse'
+import type { Mark } from './diff'
 import { renderErd } from './ErdRender'
 import { renderFlow } from './FlowRender'
+import { renderMindmap } from './MindRender'
 import { renderSequence } from './SeqRender'
 import { ArrowDefs, SvgIcon, textW } from './shared'
 
@@ -31,6 +33,10 @@ function renderRaw(type: DiagramType, code: string, selected?: number | null) {
   if (type === 'sequence') {
     const d = parseSequence(code)
     return { ...renderSequence(d, selected), errors: d.errors }
+  }
+  if (type === 'mindmap') {
+    const d = parseMindmap(code)
+    return { ...renderMindmap(d, selected), errors: d.errors }
   }
   const d = parseFlow(code)
   return { ...renderFlow(d, selected), errors: d.errors }
@@ -83,10 +89,24 @@ interface Props {
   onSelectLine?: (line: number | null) => void
   /** Makes the diagram's `title` editable in place by clicking it. */
   onTitleChange?: (title: string) => void
+  /** Opens the note a node links to with `link: Title`. */
+  onOpenLink?: (title: string, newTab: boolean) => void
+  /** Diff highlights by source line. */
+  marks?: Record<number, Mark>
+  /** Hides the export buttons, for side-by-side views. */
+  compact?: boolean
 }
 
-export function DiagramView({ type, code, title, embedded, selectedLine, onSelectLine, onTitleChange }: Props) {
-  const r = useRendered(type, code, selectedLine, title)
+const MARK_CLASSES = ['d-diff-added', 'd-diff-removed', 'd-diff-changed']
+
+export function DiagramView({ type, code, title, embedded: embeddedProp, selectedLine, onSelectLine, onTitleChange, onOpenLink, marks, compact }: Props) {
+  // Presenting takes over the screen, so an embedded diagram behaves like a full canvas meanwhile.
+  const [present, setPresent] = useState(false)
+  const [step, setStep] = useState(0)
+  const [stepLines, setStepLines] = useState<number[]>([])
+  const embedded = embeddedProp && !present
+  const root = useRef<HTMLDivElement>(null)
+  const r = useRendered(type, code, present ? null : selectedLine, title)
   // While the title is being edited the canvas is frozen, so the input stays on the chip.
   const [editingTitle, setEditingTitle] = useState(false)
   const editingRef = useRef(false)
@@ -170,12 +190,28 @@ export function DiagramView({ type, code, title, embedded, selectedLine, onSelec
     touched.current = true
     drag.current = { x: e.clientX, y: e.clientY, vx: view.x, vy: view.y }
   }
+  /** The note a click should open: the link badge, or any linked shape with Ctrl/Cmd held. */
+  const linkUnder = (under: Element | null, mod: boolean) => {
+    const badge = under?.closest('[data-link]')
+    if (badge) return badge.getAttribute('data-link')
+    if (!mod) return null
+    return under?.closest('[data-line]')?.querySelector('[data-link]')?.getAttribute('data-link') ?? null
+  }
+
   // A press that barely moved is a click: select what is under it.
   const onUp = (e: RPointerEvent) => {
     const d = drag.current
     drag.current = null
     if (!d || Math.hypot(e.clientX - d.x, e.clientY - d.y) > 4) return
     const under = document.elementFromPoint(e.clientX, e.clientY)
+    const mod = e.metaKey || e.ctrlKey
+    const link = onOpenLink && linkUnder(under, mod)
+    if (link) {
+      if (present) exitPresent()
+      onOpenLink(link, mod && !!under?.closest('[data-link]'))
+      return
+    }
+    if (present) return go(e.shiftKey ? -1 : 1)
     if (onTitleChange && under?.closest('.d-chip')) {
       setEditingTitle(true)
       return
@@ -188,6 +224,83 @@ export function DiagramView({ type, code, title, embedded, selectedLine, onSelec
     const d = drag.current
     if (d) setView((v) => ({ ...v, x: d.vx + e.clientX - d.x, y: d.vy + e.clientY - d.y }))
   }
+  // Embedded diagrams do not pan, so their links open on a plain click.
+  const onEmbeddedClick = (e: RMouseEvent) => {
+    if (!embedded || !onOpenLink) return
+    const link = linkUnder(e.target as Element, e.metaKey || e.ctrlKey)
+    if (link) onOpenLink(link, false)
+  }
+
+  /* ------------------------------ Diff marks and presentation ------------------------------ */
+
+  // Top-level elements with a source line are the units that marks and steps apply to.
+  const units = () => [...(svg.current?.querySelectorAll<SVGElement>('[data-line]') ?? [])].filter((el) => !el.parentElement?.closest('[data-line]'))
+
+  useLayoutEffect(() => {
+    const el = svg.current
+    if (!el) return
+    el.querySelectorAll('.' + MARK_CLASSES.join(',.')).forEach((n) => n.classList.remove(...MARK_CLASSES))
+    if (marks) el.querySelectorAll('[data-line]').forEach((n) => {
+      const m = marks[Number(n.getAttribute('data-line'))]
+      if (m) n.classList.add('d-diff-' + m)
+    })
+    const lines = [...new Set(units().map((n) => Number(n.getAttribute('data-line'))))].sort((a, b) => a - b)
+    setStepLines((prev) => (prev.join() === lines.join() ? prev : lines))
+  }, [marks, r])
+
+  useLayoutEffect(() => {
+    const cur = stepLines[step]
+    for (const n of units()) {
+      const line = Number(n.getAttribute('data-line'))
+      n.classList.toggle('d-step-hidden', present && line > cur)
+      n.classList.toggle('d-step-current', present && line === cur)
+    }
+  })
+
+  const go = (delta: number) => setStep((s) => Math.min(Math.max(0, s + delta), Math.max(0, stepLines.length - 1)))
+
+  const startPresent = () => {
+    setStep(0)
+    setPresent(true)
+    touched.current = false
+    root.current?.requestFullscreen?.().catch(() => {
+      /* the fixed overlay still covers the window */
+    })
+  }
+  const exitPresent = () => {
+    setPresent(false)
+    touched.current = false
+    if (document.fullscreenElement) document.exitFullscreen().catch(() => undefined)
+  }
+
+  useEffect(() => {
+    if (!present) return
+    requestAnimationFrame(() => fitRef.current())
+    const onKey = (e: KeyboardEvent) => {
+      const k = e.key
+      if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(k)) go(1)
+      else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(k)) go(-1)
+      else if (k === 'Home') setStep(0)
+      else if (k === 'End') setStep(stepLines.length - 1)
+      else if (k === 'Escape') exitPresent()
+      else return
+      e.preventDefault()
+    }
+    // Leaving fullscreen with the browser's own Esc ends the presentation too.
+    const onFs = () => !document.fullscreenElement && setPresent(false)
+    window.addEventListener('keydown', onKey)
+    document.addEventListener('fullscreenchange', onFs)
+    return () => {
+      window.removeEventListener('keydown', onKey)
+      document.removeEventListener('fullscreenchange', onFs)
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [present, stepLines.length])
+
+  // Refit once the presentation changes the stage size, then again when it ends.
+  useEffect(() => {
+    if (!embedded) requestAnimationFrame(() => fitRef.current())
+  }, [present, embedded])
 
   const svgEl = (
     <svg
@@ -205,13 +318,14 @@ export function DiagramView({ type, code, title, embedded, selectedLine, onSelec
   )
 
   return (
-    <div className={embedded ? 'diagram embedded' : 'diagram'}>
+    <div ref={root} className={'diagram' + (embedded ? ' embedded' : '') + (present ? ' presenting' : '')}>
       <div
         ref={wrap}
-        className={'diagram-stage' + (onTitleChange ? ' title-editable' : '') + (editingTitle ? ' editing-title' : '') + (animate && !embedded ? ' flow-lines' : '')}
+        className={'diagram-stage' + (onTitleChange && !present ? ' title-editable' : '') + (editingTitle ? ' editing-title' : '') + (animate && !embedded ? ' flow-lines' : '')}
         onPointerDown={onDown}
         onPointerMove={onMove}
         onPointerUp={onUp}
+        onClick={onEmbeddedClick}
       >
         {svgEl}
         {editingTitle && (
@@ -245,7 +359,23 @@ export function DiagramView({ type, code, title, embedded, selectedLine, onSelec
           />
         )}
       </div>
-      {r.errors.length > 0 && (
+      {present ? (
+        <div className="present-bar" onPointerDown={(e) => e.stopPropagation()}>
+          <button title="Previous (←)" onClick={() => go(-1)} disabled={step === 0}>
+            <ChevronLeft size={16} />
+          </button>
+          <span>
+            {Math.min(step + 1, stepLines.length)} / {stepLines.length}
+          </span>
+          <button title="Next (→ or Space)" onClick={() => go(1)} disabled={step >= stepLines.length - 1}>
+            <ChevronRight size={16} />
+          </button>
+          <button title="Exit presentation (Esc)" onClick={exitPresent}>
+            <X size={16} />
+          </button>
+        </div>
+      ) : null}
+      {!present && r.errors.length > 0 && (
         <div className="diagram-errors">
           {r.errors.slice(0, 3).map((e, i) => (
             <div key={i}>
@@ -255,7 +385,7 @@ export function DiagramView({ type, code, title, embedded, selectedLine, onSelec
           ))}
         </div>
       )}
-      <div className="diagram-tools">
+      <div className="diagram-tools" hidden={present}>
         {!embedded && (
           <>
             <button title="Zoom out" onClick={() => zoom(1 / 1.2)}>
@@ -273,14 +403,21 @@ export function DiagramView({ type, code, title, embedded, selectedLine, onSelec
             </button>
           </>
         )}
-        <button title="Export SVG" onClick={() => exportSvg(svg.current, r, title ?? 'diagram', 'svg')}>
-          <Download size={14} />
-          <span>SVG</span>
+        <button title="Present step by step" onClick={startPresent}>
+          <Presentation size={14} />
         </button>
-        <button title="Export PNG" onClick={() => exportSvg(svg.current, r, title ?? 'diagram', 'png')}>
-          <Download size={14} />
-          <span>PNG</span>
-        </button>
+        {!compact && (
+          <>
+            <button title="Export SVG" onClick={() => exportSvg(svg.current, r, title ?? 'diagram', 'svg')}>
+              <Download size={14} />
+              <span>SVG</span>
+            </button>
+            <button title="Export PNG" onClick={() => exportSvg(svg.current, r, title ?? 'diagram', 'png')}>
+              <Download size={14} />
+              <span>PNG</span>
+            </button>
+          </>
+        )}
       </div>
     </div>
   )

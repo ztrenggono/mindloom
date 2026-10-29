@@ -24,6 +24,7 @@ export function colorOf(name?: string, fallback = 'var(--d-accent)') {
 
 const ALIASES: Record<string, string> = {
   tool: 'wrench',
+  home: 'house',
   'check-square': 'square-check',
   'help-circle': 'circle-help',
   'alert-circle': 'circle-alert',
@@ -110,6 +111,18 @@ export function orthogonal(a: { x: number; y: number }, b: { x: number; y: numbe
   }
   const my = (a.y + b.y) / 2
   return [a, { x: a.x, y: my }, { x: b.x, y: my }, b]
+}
+
+/** Badge on a node's corner that opens the note named by its `link:` property. */
+export function LinkBadge({ to, x, y }: { to?: string; x: number; y: number }) {
+  if (!to) return null
+  return (
+    <g className="d-link" data-link={to}>
+      <title>{`Open note "${to}" (or Ctrl+click the shape)`}</title>
+      <circle cx={x} cy={y} r={9.5} />
+      <SvgIcon name="file-text" x={x - 5.5} y={y - 5.5} size={11} color="currentColor" />
+    </g>
+  )
 }
 
 export function ArrowDefs() {

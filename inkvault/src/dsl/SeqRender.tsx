@@ -1,6 +1,6 @@
 import type { ReactNode } from 'react'
 import type { SeqDiagram, SeqItem } from './parse'
-import { colorOf, SvgIcon, textW, type Size } from './shared'
+import { colorOf, LinkBadge, SvgIcon, textW, type Size } from './shared'
 
 const TOP = 24
 const BOX_H = 44
@@ -177,7 +177,7 @@ export function renderSequence(d: SeqDiagram, selected?: number | null): Size & 
     const tw = textW(p.name, 13.5) + (p.icon ? 24 : 0)
     const on = p.line != null && p.line === selected
     return (
-      <g key={p.name} className="d-node">
+      <g key={p.name} className="d-node" data-line={p.line}>
         <line x1={xs[i]} x2={xs[i]} y1={top + BOX_H} y2={y} stroke={on ? 'var(--d-select)' : 'var(--d-border)'} strokeWidth={1.5} strokeDasharray="4 4" />
         {on && <rect x={x - 5} y={top - 5} width={w + 10} height={BOX_H + 10} rx={12} fill="var(--d-select-bg)" stroke="var(--d-select)" strokeWidth={2} />}
         <rect data-line={p.line} className="d-pick" x={x} y={top} width={w} height={BOX_H} rx={8} fill="var(--d-node)" stroke={c} strokeWidth={1.6} />
@@ -185,6 +185,7 @@ export function renderSequence(d: SeqDiagram, selected?: number | null): Size & 
         <text x={xs[i] - tw / 2 + (p.icon ? 24 : 0)} y={top + 27} className="d-node-label">
           {p.name}
         </text>
+        <LinkBadge to={p.link} x={x + w} y={top} />
       </g>
     )
   })

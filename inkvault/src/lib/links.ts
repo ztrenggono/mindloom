@@ -9,6 +9,20 @@ export function extractLinks(doc: string): string[] {
   return [...out]
 }
 
+const DIAGRAM_LINK = /\blink:\s*("?)([^,\]"\n]+)\1/g
+
+/** Notes named by `link:` properties in a file's diagrams. */
+export function diagramLinks(file: VaultFile): string[] {
+  const out = new Set<string>()
+  for (const d of file.diagrams) for (const m of d.code.replace(/\/\/.*$/gm, '').matchAll(DIAGRAM_LINK)) out.add(m[2].trim())
+  return [...out]
+}
+
+/** Wikilinks in the note plus links from its diagrams. */
+export function fileLinks(file: VaultFile): string[] {
+  return [...new Set([...extractLinks(file.doc), ...diagramLinks(file)])]
+}
+
 export function extractTags(doc: string): string[] {
   const out = new Set<string>()
   for (const m of stripCode(doc).matchAll(TAG)) {
@@ -40,7 +54,7 @@ export function findByTitle(files: Record<string, VaultFile>, title: string) {
 export function backlinks(files: Record<string, VaultFile>, target: VaultFile) {
   const t = target.title.toLowerCase()
   return Object.values(files).filter(
-    (f) => f.id !== target.id && extractLinks(f.doc).some((l) => l.toLowerCase() === t),
+    (f) => f.id !== target.id && fileLinks(f).some((l) => l.toLowerCase() === t),
   )
 }
 

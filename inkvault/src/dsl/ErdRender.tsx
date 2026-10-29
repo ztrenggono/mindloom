@@ -1,7 +1,7 @@
 import dagre from '@dagrejs/dagre'
 import type { ReactNode } from 'react'
 import type { ErdDiagram } from './parse'
-import { colorOf, orthogonal, roundedPath, SvgIcon, textW, type Size } from './shared'
+import { colorOf, LinkBadge, orthogonal, roundedPath, SvgIcon, textW, type Size } from './shared'
 
 const HEAD = 36
 const ROW = 27
@@ -85,7 +85,8 @@ export function renderErd(d: ErdDiagram, selected?: number | null): Size & { bod
     const c = colorOf(e.color, 'var(--d-muted)')
     const active = selected != null && (e.line === selected || e.columns.some((col) => col.line === selected))
     return (
-      <g key={e.name} className="d-node">
+      // data-line on the whole entity lets presentation and diff treat it as one unit.
+      <g key={e.name} className="d-node" data-line={e.line}>
         <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={6} fill="var(--d-node)" />
         <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={6} fill={c} fillOpacity={0.08} />
         <path d={`M${b.x},${b.y + 6} a6,6 0 0 1 6,-6 h${b.w - 12} a6,6 0 0 1 6,6 v${HEAD - 6} h${-b.w} z`} fill={c} fillOpacity={0.16} />
@@ -113,6 +114,7 @@ export function renderErd(d: ErdDiagram, selected?: number | null): Size & { bod
         })}
         <rect x={b.x} y={b.y} width={b.w} height={b.h} rx={6} fill="none" stroke={c} strokeWidth={1.5} pointerEvents="none" />
         {active && <rect x={b.x - 4} y={b.y - 4} width={b.w + 8} height={b.h + 8} rx={9} fill="none" stroke="var(--d-select)" strokeWidth={2} pointerEvents="none" />}
+        <LinkBadge to={e.link} x={b.x + b.w} y={b.y} />
       </g>
     )
   })

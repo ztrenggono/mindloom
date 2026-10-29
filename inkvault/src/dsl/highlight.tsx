@@ -112,12 +112,14 @@ function tokenizeLine(raw: string, type: DiagramType, depth: number): Tok[] {
     toks.push(['tk-kw', m[0]], ...declaration(text.slice(m[0].length), 'tk-label'))
   } else if (/^}/.test(text)) {
     toks.push(['tk-punct', '}'], [null, text.slice(1)])
-  } else if (OP.test(text)) {
+  } else if (type !== 'mindmap' && OP.test(text)) {
     toks.push(...edge(text))
   } else if (type === 'erd' && depth > 0) {
     toks.push(...erdColumn(text))
   } else {
-    toks.push(...declaration(text, 'tk-name'))
+    const bullet = type === 'mindmap' ? /^[-*+]\s+/.exec(text) : null
+    if (bullet) toks.push(['tk-punct', bullet[0]])
+    toks.push(...declaration(bullet ? text.slice(bullet[0].length) : text, 'tk-name'))
   }
   return [...toks, ...comment]
 }

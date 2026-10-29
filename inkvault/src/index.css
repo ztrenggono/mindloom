@@ -1926,3 +1926,341 @@ svg.lucide :is(path, line, polyline, polygon, rect, circle, ellipse) {
     transition-property: opacity;
   }
 }
+
+/* ------------------------------------ Diagram links ------------------------------------ */
+.d-link {
+  cursor: pointer;
+  color: var(--d-accent);
+}
+.d-link circle {
+  fill: var(--d-node);
+  stroke: var(--d-accent);
+  stroke-width: 1.4;
+  transition: fill 120ms ease-out;
+}
+@media (hover: hover) {
+  .d-link:hover {
+    color: var(--d-node);
+  }
+  .d-link:hover circle {
+    fill: var(--d-accent);
+  }
+}
+
+/* -------------------------------------- Diff marks -------------------------------------- */
+:root {
+  --diff-add: #30a46c;
+  --diff-del: #e5484d;
+  --diff-mod: #e2a336;
+}
+.d-diff-added {
+  --mark: var(--diff-add);
+}
+.d-diff-removed {
+  --mark: var(--diff-del);
+}
+.d-diff-changed {
+  --mark: var(--diff-mod);
+}
+/* CSS outranks the SVG presentation attributes, so marked shapes take the mark colour. */
+:is(.d-diff-added, .d-diff-removed, .d-diff-changed) :is(rect, path, polygon, circle, ellipse, line)[stroke]:not([stroke='transparent']):not([stroke='none']) {
+  stroke: var(--mark);
+}
+:is(.d-diff-added, .d-diff-removed, .d-diff-changed) > rect[fill='transparent']:first-child {
+  fill: color-mix(in srgb, var(--mark) 22%, transparent);
+}
+:is(.d-diff-added, .d-diff-removed, .d-diff-changed) {
+  filter: drop-shadow(0 0 3px color-mix(in srgb, var(--mark) 70%, transparent));
+}
+.d-diff-removed {
+  opacity: 0.85;
+}
+
+/* ------------------------------------- Presentation ------------------------------------- */
+.diagram-tools[hidden] {
+  display: none;
+}
+.diagram.presenting {
+  position: fixed;
+  inset: 0;
+  z-index: 1000;
+  border-radius: 0;
+}
+.diagram.presenting .diagram-stage {
+  cursor: pointer;
+}
+.diagram-svg [data-line] {
+  transition: opacity 220ms ease-out;
+}
+.diagram-svg .d-step-hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.diagram-svg .d-step-current {
+  filter: drop-shadow(0 0 6px var(--d-select));
+}
+.present-bar {
+  position: absolute;
+  left: 50%;
+  bottom: 18px;
+  translate: -50% 0;
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 4px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-border), var(--shadow);
+  font-size: 12px;
+  color: var(--text-muted);
+  font-variant-numeric: tabular-nums;
+}
+.present-bar span {
+  min-width: 52px;
+  text-align: center;
+}
+.present-bar button {
+  border: 0;
+  background: none;
+  color: var(--text-normal);
+  border-radius: 6px;
+  padding: 6px;
+  display: flex;
+  cursor: pointer;
+}
+.present-bar button:disabled {
+  opacity: 0.35;
+  cursor: default;
+}
+@media (hover: hover) {
+  .present-bar button:not(:disabled):hover {
+    background: var(--background-modifier-hover, rgba(127, 127, 127, 0.15));
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .diagram-svg [data-line] {
+    transition: none;
+  }
+}
+
+/* ------------------------------------- Lint problems ------------------------------------- */
+.line-issue {
+  position: absolute;
+  left: 0;
+  right: 0;
+  pointer-events: none;
+  background: color-mix(in srgb, var(--sev) 9%, transparent);
+  box-shadow: inset 2px 0 0 var(--sev);
+}
+.sev-error {
+  --sev: #e5484d;
+}
+.sev-warning {
+  --sev: #e2a336;
+}
+.sev-info {
+  --sev: #3e8ef7;
+}
+.gutter .sev-error,
+.gutter .sev-warning,
+.gutter .sev-info {
+  color: var(--sev);
+  font-weight: 600;
+}
+.problems {
+  border-top: 1px solid var(--border);
+  font-size: 12px;
+  max-height: 34%;
+  display: flex;
+  flex-direction: column;
+  min-height: 0;
+}
+.problems-head {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 6px 12px;
+  border: 0;
+  background: none;
+  color: var(--text-muted);
+  font: inherit;
+  cursor: pointer;
+  text-align: left;
+}
+.problems-head .count {
+  display: inline-flex;
+  align-items: center;
+  gap: 3px;
+}
+.problems-head .count.sev-error,
+.problems-head .count.sev-warning,
+.problems-head .count.sev-info {
+  color: var(--sev);
+}
+.problems-list {
+  overflow: auto;
+  padding-bottom: 4px;
+}
+.problem {
+  display: flex;
+  gap: 8px;
+  align-items: flex-start;
+  width: 100%;
+  padding: 4px 12px;
+  border: 0;
+  background: none;
+  color: var(--text-normal);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+.problem svg {
+  flex-shrink: 0;
+  margin-top: 1px;
+  color: var(--sev);
+}
+.problem .ln {
+  color: var(--text-faint);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  min-width: 34px;
+}
+@media (hover: hover) {
+  .problem:hover,
+  .problems-head:hover {
+    background: var(--background-modifier-hover, rgba(127, 127, 127, 0.12));
+  }
+}
+
+/* --------------------------------------- Diff view --------------------------------------- */
+.diff-view {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  min-height: 0;
+  background: var(--bg-primary);
+}
+.diff-head {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px;
+  padding: 8px 12px;
+  border-bottom: 1px solid var(--border);
+  font-size: 12.5px;
+}
+.diff-head select {
+  font: inherit;
+  color: var(--text-normal);
+  background: var(--bg-secondary);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 4px 6px;
+  max-width: 280px;
+}
+.diff-head .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+}
+.diff-body {
+  flex: 1;
+  display: flex;
+  min-height: 0;
+}
+.diff-summary {
+  width: 260px;
+  flex-shrink: 0;
+  overflow: auto;
+  border-right: 1px solid var(--border);
+  font-size: 12px;
+  padding: 8px 0;
+}
+.diff-summary .totals {
+  display: flex;
+  gap: 10px;
+  padding: 0 12px 8px;
+  font-weight: 600;
+  font-variant-numeric: tabular-nums;
+}
+.diff-change {
+  display: flex;
+  gap: 8px;
+  padding: 4px 12px;
+  line-height: 1.45;
+}
+.diff-change .sign {
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+  font-weight: 700;
+  width: 10px;
+  flex-shrink: 0;
+}
+.diff-change .detail {
+  color: var(--text-muted);
+  word-break: break-word;
+}
+.c-added {
+  color: var(--diff-add);
+}
+.c-removed {
+  color: var(--diff-del);
+}
+.c-changed {
+  color: var(--diff-mod);
+}
+.diff-panes {
+  flex: 1;
+  display: flex;
+  min-width: 0;
+}
+.diff-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  position: relative;
+}
+.diff-pane + .diff-pane {
+  border-left: 1px solid var(--border);
+}
+.diff-pane-label {
+  position: absolute;
+  top: 8px;
+  left: 10px;
+  z-index: 2;
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--text-muted);
+  background: var(--bg-secondary);
+  border-radius: 5px;
+  padding: 2px 7px;
+}
+.diff-empty {
+  flex: 1;
+  display: grid;
+  place-content: center;
+  text-align: center;
+  gap: 10px;
+  color: var(--text-muted);
+  padding: 24px;
+}
+@media (max-width: 900px) {
+  .diff-body {
+    flex-direction: column;
+  }
+  .diff-summary {
+    width: auto;
+    max-height: 30%;
+    border-right: 0;
+    border-bottom: 1px solid var(--border);
+  }
+  .diff-panes {
+    flex-direction: column;
+  }
+  .diff-pane + .diff-pane {
+    border-left: 0;
+    border-top: 1px solid var(--border);
+  }
+}

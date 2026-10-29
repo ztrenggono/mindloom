@@ -558,6 +558,56 @@ Hotfix branch > Merge to main`,
 
   /* -------------------------------- Product & Operations -------------------------------- */
   {
+    id: 'mind-product-roadmap',
+    category: 'product',
+    title: 'Product Roadmap Brainstorm',
+    description: 'Mind map of themes, bets and metrics for a quarter',
+    type: 'mindmap',
+    code: `title Product Roadmap Brainstorm
+
+Q3 Roadmap [icon: map]
+  Growth [icon: trending-up]
+    Referral program
+    Self-serve trials
+    Pricing page test
+  Retention [icon: repeat]
+    Onboarding checklist
+    Weekly digest email
+    In-app tips
+  Platform [icon: server]
+    Public API v2
+    SSO for teams
+    Audit log
+  Metrics [icon: chart-line]
+    Activation rate
+    Net revenue retention
+    Time to first value`,
+  },
+  {
+    id: 'mind-incident-retro',
+    category: 'devops',
+    title: 'Incident Retrospective',
+    description: 'Mind map of what happened, why, and follow-ups',
+    type: 'mindmap',
+    code: `title Incident Retrospective
+
+Checkout outage [icon: siren, color: red]
+  Timeline [icon: clock]
+    Deploy at 14:02
+    Alerts at 14:09
+    Rollback at 14:31
+  Root causes [icon: search]
+    Missing DB index
+    No canary for migrations
+  Impact [icon: users]
+    29 minutes of failed payments
+    Support tickets spiked
+  Follow-ups [icon: list-checks, color: green]
+    Add migration canary
+    Index review in CI
+    Payment failure alert`,
+  },
+  {
     id: 'flow-onboarding',
     category: 'product',
     title: 'User Signup & Onboarding',

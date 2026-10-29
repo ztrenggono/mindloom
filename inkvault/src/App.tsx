@@ -114,6 +114,7 @@ export default function App() {
     { id: 'flow', name: 'New note with flowchart', run: () => newDiagramNote('flowchart') },
     { id: 'seq', name: 'New note with sequence diagram', run: () => newDiagramNote('sequence') },
     { id: 'cloud', name: 'New note with cloud architecture diagram', run: () => newDiagramNote('cloud') },
+    { id: 'mindmap', name: 'New note with mind map', run: () => newDiagramNote('mindmap') },
     { id: 'search', name: 'Search in all notes', hotkey: 'Ctrl Shift F', run: () => (setSide('search'), setLeftOpen(true)) },
     { id: 'left', name: 'Toggle left sidebar', run: () => setLeftOpen((o) => !o) },
     { id: 'right', name: 'Toggle right sidebar', run: () => setRightOpen((o) => !o) },
