@@ -76,5 +76,8 @@ export default function Whiteboard({ elements, files, theme, onChange, insert, o
   )
 }
 
-/** Changes whenever any element is added or edited. */
-const signature = (els: readonly { id: string; version: number }[]) => els.map((e) => e.id + ':' + e.version).join(',')
+/**
+ * Changes whenever any element is added or edited. The nonce tells apart two edits that reached
+ * the same version at once, so the one that wins still reaches this scene.
+ */
+const signature = (els: readonly { id: string; version: number; versionNonce: number }[]) => els.map((e) => `${e.id}:${e.version}:${e.versionNonce}`).join(',')

@@ -527,13 +527,18 @@ export function useVault() {
   }
 }
 
-/** Moves the server's vault from before live collaboration into `d`, once. */
+/**
+ * Moves the server's vault from before live collaboration into `d`, once. Another browser
+ * upgrading at the same time may finish first while this one waits for the snapshot, so it
+ * stands down if the live vault has notes by then, and never replaces a newer edit anyway.
+ */
 async function importLegacyServer(d: Y.Doc, token: string) {
   const res = await fetch('/api/vault', { headers: token ? { authorization: `Bearer ${token}` } : {}, signal: AbortSignal.timeout(15_000) })
   if (!res.ok) throw new Error(`Server replied ${res.status}`)
   const snap = (await res.json()) as LegacySnapshot
+  if (filesOf(d).size) return
   d.transact(() => {
-    importFiles(d, snap.files, { deletes: Object.fromEntries(snap.tombstones.map((t) => [t.id, t.at])) })
+    importFiles(d, snap.files, { onlyNewer: true, deletes: Object.fromEntries(snap.tombstones.map((t) => [t.id, t.at])) })
     snap.folders?.value.forEach((p) => foldersOf(d).set(p, true))
   })
 }
