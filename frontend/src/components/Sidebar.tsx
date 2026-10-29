@@ -3,6 +3,8 @@ import { ChevronDown, FilePlus, FileText, Folder, FolderPlus, Hash, Pin, Search,
 import type { VaultFile } from '../types'
 import type { Vault } from '../store'
 import { extractTags } from '../lib/links'
+import { parseQuery, search, type Hit } from '../lib/search'
+import { TYPE_ICON } from './CanvasPanel'
 
 export type SideView = 'files' | 'search' | 'tags'
 
@@ -11,6 +13,7 @@ interface Props {
   view: SideView
   query: string
   setQuery: (q: string) => void
+  onOpenHit: (fileId: string, hit: Hit) => void
 }
 
 interface Tree {
@@ -48,7 +51,7 @@ function buildTree(folders: string[], files: VaultFile[]): Tree {
   return root
 }
 
-export function Sidebar({ vault, view, query, setQuery }: Props) {
+export function Sidebar({ vault, view, query, setQuery, onOpenHit }: Props) {
   const { state } = vault
   const files = Object.values(state.files)
   const [collapsed, setCollapsed] = useState<Set<string>>(new Set())
@@ -153,7 +156,7 @@ export function Sidebar({ vault, view, query, setQuery }: Props) {
     </>
   )
 
-  if (view === 'search') return <SearchView vault={vault} query={query} setQuery={setQuery} />
+  if (view === 'search') return <SearchView vault={vault} query={query} setQuery={setQuery} onOpenHit={onOpenHit} />
   if (view === 'tags') return <TagsView vault={vault} onPick={(t) => setQuery('#' + t)} />
 
   return (
@@ -180,56 +183,67 @@ export function Sidebar({ vault, view, query, setQuery }: Props) {
   )
 }
 
-function SearchView({ vault, query, setQuery }: { vault: Vault; query: string; setQuery: (q: string) => void }) {
-  const q = query.trim().toLowerCase()
-  const results = useMemo(() => {
-    if (!q) return []
-    const tag = q.startsWith('#') ? q.slice(1) : null
-    return Object.values(vault.state.files)
-      .map((f) => {
-        if (tag) return extractTags(f.doc).some((t) => t.toLowerCase() === tag) ? { f, hits: [] as string[] } : null
-        const hay = f.title.toLowerCase() + '\n' + f.doc.toLowerCase() + '\n' + f.diagrams.map((d) => d.code.toLowerCase()).join('\n')
-        if (!hay.includes(q)) return null
-        const hits = f.doc
-          .split('\n')
-          .filter((l) => l.toLowerCase().includes(q))
-          .slice(0, 3)
-        return { f, hits }
-      })
-      .filter((x): x is { f: VaultFile; hits: string[] } => !!x)
-  }, [q, vault.state.files])
+function SearchView({ vault, query, setQuery, onOpenHit }: Pick<Props, 'vault' | 'query' | 'setQuery' | 'onOpenHit'>) {
+  const results = useMemo(() => search(Object.values(vault.state.files), query), [query, vault.state.files])
+  const terms = useMemo(() => parseQuery(query).terms, [query])
+  const hitCount = results.reduce((n, r) => n + r.hits.length, 0)
 
   return (
     <div className="sidebar-inner">
       <div className="search-box">
         <Search size={14} />
-        <input autoFocus placeholder="Search… (#tag for tags)" value={query} onChange={(e) => setQuery(e.target.value)} />
+        <input autoFocus placeholder="Search notes and diagrams…" value={query} onChange={(e) => setQuery(e.target.value)} />
       </div>
-      <div className="search-count muted">{q ? `${results.length} result${results.length === 1 ? '' : 's'}` : ''}</div>
-      {results.map(({ f, hits }) => (
-        <div key={f.id} className="search-result" onClick={() => vault.open(f.id)}>
-          <div className="title">{f.title}</div>
-          {hits.map((h, i) => (
-            <div key={i} className="snippet">
-              {highlight(h.trim().slice(0, 140), q)}
-            </div>
-          ))}
+      {query.trim() ? (
+        <div className="search-count muted">
+          {results.length} note{results.length === 1 ? '' : 's'}
+          {hitCount > 0 && `, ${hitCount} matching line${hitCount === 1 ? '' : 's'}`}
+        </div>
+      ) : (
+        <div className="search-help muted">
+          <div>
+            <code>word other</code> all words, any order
+          </div>
+          <div>
+            <code>"exact phrase"</code> phrase
+          </div>
+          <div>
+            <code>#tag</code> <code>folder:Database</code> filter
+          </div>
+          <div>
+            <code>in:notes</code> <code>in:diagrams</code> where to look
+          </div>
+        </div>
+      )}
+      {results.map(({ file, hits }) => (
+        <div key={file.id} className="search-result">
+          <div className="title" onClick={() => vault.open(file.id)}>
+            {highlight(file.title, terms)}
+            {file.folder && <span className="search-folder">{file.folder}</span>}
+          </div>
+          {hits.map((h, i) => {
+            const Icon = h.where === 'diagram' ? TYPE_ICON[file.diagrams.find((d) => d.id === h.diagramId)?.type ?? 'flowchart'] : null
+            return (
+              <div key={i} className="snippet" onClick={() => onOpenHit(file.id, h)}>
+                {Icon && (
+                  <span className="snippet-source">
+                    <Icon size={11} /> {h.diagramTitle}
+                  </span>
+                )}
+                {highlight(h.text.slice(0, 160), terms)}
+              </div>
+            )
+          })}
         </div>
       ))}
     </div>
   )
 }
 
-function highlight(text: string, q: string) {
-  const i = text.toLowerCase().indexOf(q)
-  if (i < 0) return text
-  return (
-    <>
-      {text.slice(0, i)}
-      <mark>{text.slice(i, i + q.length)}</mark>
-      {text.slice(i + q.length)}
-    </>
-  )
+function highlight(text: string, terms: string[]) {
+  if (!terms.length) return text
+  const re = new RegExp(`(${terms.map((t) => t.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')).join('|')})`, 'gi')
+  return text.split(re).map((part, i) => (i % 2 ? <mark key={i}>{part}</mark> : part))
 }
 
 function TagsView({ vault, onPick }: { vault: Vault; onPick: (t: string) => void }) {

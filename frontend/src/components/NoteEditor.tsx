@@ -33,8 +33,23 @@ function Reading({ file, onChange, onOpenLink, onTag, scrollToLine }: Omit<Props
   useEffect(() => {
     if (!scrollToLine || !ref.current) return
     const text = file.doc.split('\n')[scrollToLine.line]?.replace(/^#+\s*/, '').trim()
+    if (!text) return
     const h = [...ref.current.querySelectorAll('h1,h2,h3,h4,h5,h6')].find((el) => el.textContent?.trim() === text)
-    h?.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
+    if (h) return h.scrollIntoView({ behavior: scrollBehavior(), block: 'start' })
+    // Any other line (a search hit): the first block whose text contains it, minus Markdown marks.
+    const row = text.includes('|') ? (text.split('|').find((c) => c.trim()) ?? text) : text
+    const plain = row
+      .replace(/^([-*+]|\d+\.|>)\s+(\[[ x]\]\s+)?/i, '')
+      .replace(/\]\([^)]*\)/g, '')
+      .replace(/[*_`~=[\]]/g, '')
+      .trim()
+      .slice(0, 40)
+      .toLowerCase()
+    const block = [...ref.current.querySelectorAll<HTMLElement>('p,li,blockquote,td,th,pre')].find((el) => el.textContent?.replace(/[*_`~=]/g, '').toLowerCase().includes(plain))
+    if (!block) return
+    block.scrollIntoView({ behavior: scrollBehavior(), block: 'center' })
+    block.classList.add('flash')
+    window.setTimeout(() => block.classList.remove('flash'), 1200)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [scrollToLine])
 

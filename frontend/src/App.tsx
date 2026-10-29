@@ -9,6 +9,7 @@ import { CommandPalette, type Command } from './components/CommandPalette'
 import { FileView } from './components/FileView'
 import { backlinks, extractLinks, findByTitle, uid } from './lib/links'
 import { wordCount } from './lib/markdown'
+import type { Hit } from './lib/search'
 import { download } from './dsl/DiagramView'
 import { TEMPLATES } from './components/CanvasPanel'
 import { SaveIndicator } from './components/SaveIndicator'
@@ -35,7 +36,8 @@ export default function App() {
   const [palette, setPalette] = useState<null | 'commands' | 'files'>(null)
   const [modes, setModes] = useState<Record<string, 'edit' | 'read'>>({})
   const [activeDiagram, setActiveDiagram] = useState<Record<string, string>>({})
-  const [scrollTo, setScrollTo] = useState<{ line: number; n: number } | undefined>()
+  // Tied to a file, so opening another note later does not replay an old jump.
+  const [scrollTo, setScrollTo] = useState<{ fileId: string; line: number; n: number } | undefined>()
   const importRef = useRef<HTMLInputElement>(null)
 
   const file = state.activeTab && state.activeTab !== GRAPH_TAB ? (state.files[state.activeTab] ?? null) : null
@@ -94,6 +96,18 @@ export default function App() {
     const src = state.files[sourceId]
     const re = new RegExp(`(?<!\\[\\[)\\b(${file.title.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')})\\b(?!\\]\\])`, 'i')
     vault.patch(sourceId, { doc: src.doc.replace(re, '[[$1]]') })
+  }
+
+  const openHit = (fileId: string, hit: Hit) => {
+    vault.open(fileId)
+    const f = state.files[fileId]
+    if (hit.where === 'doc') {
+      if (f?.layout === 'canvas') vault.patch(fileId, { layout: 'both' })
+      setScrollTo({ fileId, line: hit.line, n: Date.now() })
+    } else if (hit.diagramId) {
+      if (f?.layout === 'doc') vault.patch(fileId, { layout: 'both' })
+      setActiveDiagram((s) => ({ ...s, [fileId]: hit.diagramId! }))
+    }
   }
 
   const showTag = (t: string) => {
@@ -252,7 +266,7 @@ export default function App() {
 
         {leftMounted && (
           <aside className={'sidebar' + (leftOpen ? '' : ' closing')} inert={!leftOpen}>
-            <Sidebar vault={vault} view={side} query={query} setQuery={setQuery} />
+            <Sidebar vault={vault} view={side} query={query} setQuery={setQuery} onOpenHit={openHit} />
           </aside>
         )}
 
@@ -271,7 +285,7 @@ export default function App() {
               setActiveDiagram={(id) => setActiveDiagram((s) => ({ ...s, [file.id]: id }))}
               onOpenLink={(t, nt) => openTitle(null, t, nt)}
               onTag={showTag}
-              scrollToLine={scrollTo}
+              scrollToLine={scrollTo?.fileId === file.id ? scrollTo : undefined}
             />
           ) : (
             <div className="empty-state">
@@ -295,7 +309,7 @@ export default function App() {
               file={file}
               files={state.files}
               onOpen={onGraphOpen}
-              onHeading={(line) => setScrollTo({ line, n: Date.now() })}
+              onHeading={(line) => file && setScrollTo({ fileId: file.id, line, n: Date.now() })}
               onLinkMention={linkMention}
               onTag={showTag}
             />
