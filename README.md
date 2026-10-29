@@ -43,45 +43,17 @@ docker compose down -v           # stop and delete all data
 ```
 
 To change the port or database password, copy `infra/.env.example` to `infra/.env` and edit it.
-Before exposing the app beyond your machine, also set `API_TOKEN` there (for example
-`openssl rand -hex 32`). Without it, anyone who can reach the server can read and change the vault.
-Each browser asks for the token once, from the status bar.
 
-### HTTPS on a shared server
-
-Over plain `http://` the token crosses the network unencrypted. To serve the app over HTTPS,
-uncomment the HTTPS block in `infra/.env` and run `docker compose up -d`. This starts
-[Caddy](https://caddyserver.com) on ports 80 and 443 in front of the app:
-
-```bash
-COMPOSE_PROFILES=https
-DOMAIN=mindloom.office.lan   # the hostname or IP address people type in the browser
-TLS=internal                 # or your email, for Let's Encrypt on a public domain
-WEB_PORT=127.0.0.1:8080      # plain HTTP only from the server itself
-```
-
-- **Office network (`TLS=internal`):** Caddy issues the certificate from its own certificate
-  authority, so browsers warn until each computer trusts that authority once. Copy the root
-  certificate off the server, then install it on each computer: on macOS, double-click it, add it to
-  the System keychain and set it to Always Trust; on Windows, import it into "Trusted Root
-  Certification Authorities".
-
-  ```bash
-  docker compose cp caddy:/data/caddy/pki/authorities/local/root.crt mindloom-root.crt
-  ```
-
-  The authority lives in the `caddy_data` volume. Keep that volume, or every computer has to
-  trust a new certificate.
-- **Public domain (`TLS=you@example.com`):** point the domain's DNS at the server and open ports 80
-  and 443 to the internet. Caddy gets and renews a Let's Encrypt certificate by itself.
-
-`DOMAIN` has to match what people type: open `https://mindloom.office.lan`, not the server's IP,
-unless `DOMAIN` is that IP. Plain `http://` requests are redirected to HTTPS.
+**On a server other people can reach**, also set `API_TOKEN` and turn on HTTPS. Without them,
+anyone on the network can read and change the vault. [docs/deployment.md](docs/deployment.md)
+walks through it: the token, HTTPS with Caddy (office network or public domain), trusting the
+certificate, backups and troubleshooting.
 
 ## Development
 
 Hot-reload setup, checks and the project layout are in [docs/development.md](docs/development.md).
-Feature overview: [docs/features.md](docs/features.md). Backend API: [backend/README.md](backend/README.md).
+Feature overview: [docs/features.md](docs/features.md). Running on a shared server:
+[docs/deployment.md](docs/deployment.md). Backend API: [backend/README.md](backend/README.md).
 
 ## Contributing
 
