@@ -143,6 +143,11 @@ docker compose up -d --build
 
 Data, certificates and settings in `.env` are kept.
 
+**Updating from a version without live sync:** nothing to do by hand. The first browser that opens
+the new version moves the server's vault into the live document, and each browser adds the edits
+it had not sent yet. Ask everyone to reload open tabs: an old tab shows **server offline** and
+keeps its edits until it is reloaded.
+
 ### Back up and restore
 
 The vault lives in PostgreSQL. To back it up:
@@ -156,6 +161,16 @@ To restore a backup. This replaces the current vault with the one in the file:
 ```bash
 docker compose exec -T db psql -U mindloom mindloom < mindloom-backup.sql
 ```
+
+Then restart the backend, which keeps the vault in memory while it runs:
+
+```bash
+docker compose restart backend
+```
+
+Browsers keep their own copy of the vault and merge it back in when they reconnect, so a restore
+alone does not undo edits those browsers have. To roll everyone back, also clear the site data in
+each browser (browser settings, "Clear site data" for the Mindloom address) before it reconnects.
 
 If you changed `POSTGRES_USER` or `POSTGRES_DB`, use those names instead of `mindloom`. Each user
 can also export the whole vault as JSON from the app.
@@ -171,6 +186,7 @@ docker compose logs -f caddy     # certificates and HTTPS
 
 | Problem | Cause and fix |
 |---------|---------------|
+| The status bar stays on **server offline** while the site loads fine | The live-sync WebSocket at `/api/collab` is blocked. A proxy in front of Mindloom must pass WebSocket upgrades; Caddy and the bundled nginx do. Check `docker compose logs backend`. |
 | The browser says the connection is not private | With `TLS=internal`, the computer does not trust Caddy's root certificate yet (step 4), or the browser was not restarted after installing it. |
 | The certificate is for a different name | The address in the browser does not match `DOMAIN`. Open exactly `https://<DOMAIN>`. |
 | The page does not load at all | `DOMAIN` does not resolve to the server (step 2), or a firewall blocks ports 80 and 443. |

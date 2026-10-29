@@ -1,6 +1,9 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Brain, Code2, GitBranch, GitCompare, PenTool, Plus, Table2, Trash2, Workflow, Cloud, X, CircleHelp, PanelLeft, PanelRight, CircleAlert, TriangleAlert, Info, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Diagram, DiagramType, VaultFile } from '../types'
+import type { RemoteCaret } from '../store'
+import { RemoteCarets } from './RemoteCarets'
+import { useKeepSelection } from '../lib/useKeepSelection'
 import { DiagramView } from '../dsl/DiagramView'
 import { uid } from '../lib/links'
 import { SyntaxHelp } from './SyntaxHelp'
@@ -112,11 +115,15 @@ interface Props {
   onWhiteboard: (els: unknown[], files: Record<string, unknown>) => void
   active: string
   setActive: (id: string) => void
+  /** Other people's carets in a diagram's code. */
+  caretsIn?: (diagramId: string) => RemoteCaret[]
+  /** This browser's caret in a diagram's code moved (`null`: it lost focus). */
+  onCursor?: (diagramId: string, index: number | null) => void
 }
 
 export const WHITEBOARD = '__whiteboard__'
 
-export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, onDiagrams, onWhiteboard, active, setActive }: Props) {
+export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, onDiagrams, onWhiteboard, active, setActive, caretsIn, onCursor }: Props) {
   const [diffOpen, setDiffOpen] = useState(false)
   // Fixed position so the panel escapes the tab bar's overflow clipping
   const [menu, setMenu] = useState<{ top: number; left: number; right: number } | null>(null)
@@ -245,7 +252,7 @@ export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, 
           <DiffView diagram={diagram} file={file} files={files} onUpsert={onUpsert} onClose={() => setDiffOpen(false)} />
         ) : diagram ? (
           <>
-            {showCode && <CodeEditor key={diagram.id} diagram={diagram} titles={titles} side={codeSide} onFlipSide={flipCodeSide} selected={sel} onCursorLine={setSel} onChange={(code) => onUpsert({ ...diagram, code })} />}
+            {showCode && <CodeEditor key={diagram.id} diagram={diagram} titles={titles} side={codeSide} onFlipSide={flipCodeSide} selected={sel} onCursorLine={setSel} onChange={(code) => onUpsert({ ...diagram, code })} carets={caretsIn?.(diagram.id) ?? []} onCursor={(i) => onCursor?.(diagram.id, i)} />}
             <div className="canvas-stage">
               <DiagramView
                 key={diagram.id}
@@ -302,10 +309,13 @@ interface EditorProps {
   onChange: (code: string) => void
   selected: number | null
   onCursorLine: (line: number) => void
+  carets: RemoteCaret[]
+  onCursor: (index: number | null) => void
 }
 
-function CodeEditor({ diagram, titles, side, onFlipSide, onChange, selected, onCursorLine }: EditorProps) {
+function CodeEditor({ diagram, titles, side, onFlipSide, onChange, selected, onCursorLine, carets, onCursor }: EditorProps) {
   const ta = useRef<HTMLTextAreaElement>(null)
+  useKeepSelection(ta, diagram.code)
   const gutter = useRef<HTMLDivElement>(null)
   const [width, setWidth] = useState(340)
   const [scroll, setScroll] = useState(0)
@@ -399,7 +409,8 @@ function CodeEditor({ diagram, titles, side, onFlipSide, onChange, selected, onC
             spellCheck={false}
             value={diagram.code}
             onChange={(e) => onChange(e.target.value)}
-            onSelect={(e) => cursorLine(e.currentTarget)}
+            onSelect={(e) => (cursorLine(e.currentTarget), onCursor(e.currentTarget.selectionEnd))}
+            onBlur={() => onCursor(null)}
             onKeyDown={(e) => {
               if (e.key !== 'Tab') return
               e.preventDefault()
@@ -409,6 +420,7 @@ function CodeEditor({ diagram, titles, side, onFlipSide, onChange, selected, onC
               requestAnimationFrame(() => el.setSelectionRange(s + 2, s + 2))
             }}
           />
+          <RemoteCarets target={ta} carets={carets} />
         </div>
       </div>
       <Problems issues={issues} onPick={jumpTo} />

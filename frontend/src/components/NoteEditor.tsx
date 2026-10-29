@@ -2,6 +2,10 @@ import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEve
 import type { VaultFile } from '../types'
 import { DiagramView } from '../dsl/DiagramView'
 import { renderNote, toggleTask } from '../lib/markdown'
+import { caretXY } from '../lib/caret'
+import type { RemoteCaret } from '../store'
+import { RemoteCarets } from './RemoteCarets'
+import { useKeepSelection } from '../lib/useKeepSelection'
 
 interface Props {
   file: VaultFile
@@ -11,17 +15,21 @@ interface Props {
   onOpenLink: (title: string, newTab: boolean) => void
   onTag: (tag: string) => void
   scrollToLine?: { line: number; n: number }
+  /** Other people's carets in this note's text. */
+  carets?: RemoteCaret[]
+  /** This browser's caret moved (`null`: the editor lost focus). */
+  onCursor?: (index: number | null) => void
 }
 
-export function NoteEditor({ file, allTitles, mode, onChange, onOpenLink, onTag, scrollToLine }: Props) {
+export function NoteEditor({ file, allTitles, mode, onChange, onOpenLink, onTag, scrollToLine, carets = [], onCursor }: Props) {
   return mode === 'edit' ? (
-    <SourceEditor file={file} allTitles={allTitles} onChange={onChange} scrollToLine={scrollToLine} />
+    <SourceEditor file={file} allTitles={allTitles} onChange={onChange} scrollToLine={scrollToLine} carets={carets} onCursor={onCursor} />
   ) : (
     <Reading file={file} onChange={onChange} onOpenLink={onOpenLink} onTag={onTag} scrollToLine={scrollToLine} />
   )
 }
 
-function Reading({ file, onChange, onOpenLink, onTag, scrollToLine }: Omit<Props, 'mode' | 'allTitles'>) {
+function Reading({ file, onChange, onOpenLink, onTag, scrollToLine }: Omit<Props, 'mode' | 'allTitles' | 'carets' | 'onCursor'>) {
   // The inline title already shows the note name, so drop a matching leading H1.
   const segs = useMemo(() => {
     const m = /^#\s+(.+)\n?/.exec(file.doc)
@@ -86,8 +94,9 @@ function Reading({ file, onChange, onOpenLink, onTag, scrollToLine }: Omit<Props
   )
 }
 
-function SourceEditor({ file, allTitles, onChange, scrollToLine }: Omit<Props, 'mode' | 'onOpenLink' | 'onTag'>) {
+function SourceEditor({ file, allTitles, onChange, scrollToLine, carets = [], onCursor }: Omit<Props, 'mode' | 'onOpenLink' | 'onTag'>) {
   const ta = useRef<HTMLTextAreaElement>(null)
+  useKeepSelection(ta, file.doc)
   const [suggest, setSuggest] = useState<{ query: string; start: number; x: number; y: number; sel: number } | null>(null)
 
   useEffect(() => {
@@ -200,9 +209,11 @@ function SourceEditor({ file, allTitles, onChange, scrollToLine }: Omit<Props, '
         onKeyDown={onKey}
         onKeyUp={(e) => !['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key) && refreshSuggest(e.currentTarget)}
         onClick={(e) => refreshSuggest(e.currentTarget)}
-        onBlur={() => setTimeout(() => setSuggest(null), 150)}
+        onSelect={(e) => onCursor?.(e.currentTarget.selectionEnd)}
+        onBlur={() => (setTimeout(() => setSuggest(null), 150), onCursor?.(null))}
         placeholder="Start writing… use [[ to link notes"
       />
+      <RemoteCarets target={ta} carets={carets} />
       {suggest && matches.length > 0 && (
         <div className="suggest" style={{ left: suggest.x, top: suggest.y + 24 }}>
           {matches.map((m, i) => (
@@ -218,24 +229,4 @@ function SourceEditor({ file, allTitles, onChange, scrollToLine }: Omit<Props, '
 
 function scrollBehavior(): ScrollBehavior {
   return matchMedia('(prefers-reduced-motion: reduce)').matches ? 'auto' : 'smooth'
-}
-
-/** Caret pixel position inside a textarea, measured with a mirrored div. */
-function caretXY(el: HTMLTextAreaElement, pos: number) {
-  const div = document.createElement('div')
-  const cs = getComputedStyle(el)
-  for (const p of ['font', 'letterSpacing', 'lineHeight', 'padding', 'border', 'width', 'boxSizing', 'whiteSpace', 'wordWrap', 'tabSize'] as const) {
-    div.style[p] = cs[p]
-  }
-  div.style.position = 'absolute'
-  div.style.visibility = 'hidden'
-  div.style.whiteSpace = 'pre-wrap'
-  div.textContent = el.value.slice(0, pos)
-  const span = document.createElement('span')
-  span.textContent = '​'
-  div.appendChild(span)
-  document.body.appendChild(div)
-  const out = { x: span.offsetLeft, y: span.offsetTop }
-  document.body.removeChild(div)
-  return out
 }

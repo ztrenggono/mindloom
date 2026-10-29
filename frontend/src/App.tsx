@@ -14,6 +14,7 @@ import { convertMermaidFences, fromMermaid } from './dsl/mermaid'
 import { download } from './dsl/DiagramView'
 import { TEMPLATES } from './components/CanvasPanel'
 import { SaveIndicator } from './components/SaveIndicator'
+import { MergeNoticeCard, Presence } from './components/Presence'
 import { Tooltip } from './components/Tooltip'
 
 /** Matches the .sidebar.closing transition in index.css. */
@@ -329,6 +330,7 @@ export default function App() {
       <Tooltip />
       <footer className="statusbar">
         <SaveIndicator status={vault.status} onRetry={vault.retrySync} onExport={exportVault} onToken={vault.setToken} />
+        <Presence vault={vault} />
         {file ? (
           <>
             <span>{backlinks(state.files, file).length} backlinks</span>
@@ -342,6 +344,8 @@ export default function App() {
           <span>{Object.keys(state.files).length} notes</span>
         )}
       </footer>
+
+      {vault.notice && <MergeNoticeCard notice={vault.notice} onOpen={(id) => vault.open(id)} onClose={vault.dismissNotice} />}
 
       {palette && (
         <CommandPalette

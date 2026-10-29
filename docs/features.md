@@ -11,4 +11,6 @@
 | Import file `.eraser` | Command palette (Ctrl+P), quick switcher (Ctrl+O), tema gelap / terang |
 | Copy diagram sebagai Mermaid, import `.mmd` dan blok ```` ```mermaid ```` | Pencarian full-text di catatan dan kode diagram: `"frasa"`, `#tag`, `folder:`, `in:notes` / `in:diagrams` |
 
+Kolaborasi live: beberapa orang bisa mengedit vault yang sama bersamaan dan melihat ketikan, kursor, serta nama satu sama lain secara langsung. Klik nama Anda di status bar untuk menggantinya. Edit yang dibuat saat offline digabung otomatis ketika server tersambung lagi, tanpa menimpa edit orang lain, dan aplikasi memberi tahu catatan mana saja yang digabung.
+
 Rename catatan otomatis memperbarui semua `[[link]]` yang menunjuk ke catatan itu. Backup / restore seluruh vault lewat tombol export / import (JSON).

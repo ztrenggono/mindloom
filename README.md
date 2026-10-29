@@ -17,8 +17,11 @@ explain them.
 - **Notes**: folders, `[[wikilinks]]`, backlinks, graph view, tags, outline, command palette.
 - **Full-text search** (Ctrl+Shift+F) across notes and diagram code, with `"phrases"`, `#tag`,
   `folder:` and `in:notes` / `in:diagrams`. Each result jumps to its line.
+- **Live collaboration**: several people edit the same vault at once and see each other's edits,
+  cursors and names as they type. Edits made offline merge in when the server is back, without
+  overwriting anyone's work.
 - **Works offline**: edits save in the browser (IndexedDB) first and sync to PostgreSQL when the
-  server is reachable. Several browsers can share one vault.
+  server is reachable.
 
 ## Quick start with Docker
 
@@ -35,7 +38,7 @@ Open http://localhost:8080. The first start builds the images, so it takes a few
 | Service   | What it runs                                  | Exposed            |
 |-----------|-----------------------------------------------|--------------------|
 | `web`     | The built app on nginx, proxying `/api`       | `localhost:8080`   |
-| `backend` | Sync API (Node + Hono)                        | Only inside Docker |
+| `backend` | Live sync API (Node + Hono + Yjs)             | Only inside Docker |
 | `db`      | PostgreSQL 16, data in the `pgdata` volume    | Only inside Docker |
 | `caddy`   | HTTPS in front of `web` (optional, see below) | `:80`, `:443`      |
 
