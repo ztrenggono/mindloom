@@ -298,11 +298,7 @@ export function useVault() {
           const old = legacy ?? loadLegacy()
           const base = old ?? seedState()
           d.transact(() => {
-            importFiles(d, Object.values(base.files))
-            for (const [id, at] of Object.entries(legacyPending?.deletes ?? {})) {
-              writeFile(d, { id, title: '', folder: '', doc: '', diagrams: [], whiteboard: null, layout: 'doc', createdAt: 0, updatedAt: 0 })
-              deleteFile(d, id, at)
-            }
+            importFiles(d, Object.values(base.files), { deletes: legacyPending?.deletes })
             base.folders.forEach((p) => foldersOf(d).set(p, true))
           }, 'load')
           flags.current = { provisional: true, fresh: !old }

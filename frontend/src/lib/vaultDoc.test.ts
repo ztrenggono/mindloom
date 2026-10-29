@@ -160,6 +160,18 @@ describe('vault document', () => {
   })
 })
 
+describe('importing an older vault', () => {
+  it('keeps tombstones of notes that no longer exist, so stale copies stay deleted', () => {
+    const server = new Y.Doc()
+    importFiles(server, [], { deletes: { gone: 100 } })
+    const local = new Y.Doc()
+    importFiles(local, [note('gone', { updatedAt: 50 }), note('revived', { updatedAt: 150 })])
+    importFiles(server, [], { deletes: { revived: 100 } })
+    importDoc(server, local)
+    expect(Object.keys(readVault(server).files)).toEqual(['revived'])
+  })
+})
+
 describe('mapIndex', () => {
   it('keeps a caret on its character when text changes before or after it', () => {
     expect(mapIndex('hello world', 'hey hello world', 6)).toBe(10)

@@ -1,6 +1,6 @@
 /** Exercises the API against an in-memory Postgres (PGlite), so it runs without Docker. */
 import assert from 'node:assert/strict'
-import type { AddressInfo } from 'node:net'
+import { connect, type AddressInfo } from 'node:net'
 import type { Server } from 'node:http'
 import { PGlite } from '@electric-sql/pglite'
 import { serve } from '@hono/node-server'
@@ -176,6 +176,26 @@ async function until(ok: () => boolean, ms = 3000) {
   const after = await start()
   assert.ok(after.collab.doc.getText('t').toString().startsWith('kept? '))
   await after.stop()
+}
+
+{
+  // A malformed frame closes that one connection instead of crashing the server.
+  const live = await start()
+  const { port } = new URL(live.url)
+  const sock = connect(Number(port), '127.0.0.1')
+  await new Promise((r) => sock.once('connect', r))
+  sock.write(`GET ${PATH} HTTP/1.1\r\nHost: x\r\nUpgrade: websocket\r\nConnection: Upgrade\r\nSec-WebSocket-Key: dGhlIHNhbXBsZSBub25jZQ==\r\nSec-WebSocket-Version: 13\r\n\r\n`)
+  await new Promise((r) => sock.once('data', r))
+  const log = console.error
+  console.error = () => {}
+  // Opcode 3 is reserved, so ws rejects the frame.
+  sock.write(Buffer.from([0x83, 0x80, 0, 0, 0, 0]))
+  await new Promise((r) => sock.once('close', r))
+  console.error = log
+  const ok = client(live.url)
+  await ok.synced
+  ok.ws.close()
+  await live.stop()
 }
 
 {

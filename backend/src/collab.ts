@@ -173,6 +173,12 @@ export async function createCollab(db: Db, token?: string, { retryMs = RETRY_MS 
     conns.set(ws, conn)
     if (conn.authed) welcome(ws)
     ws.on('pong', () => (conn.alive = true))
+    // Bad frames and oversized messages arrive here, not at 'message'. Unhandled, they would
+    // crash the server for everyone.
+    ws.on('error', (e) => {
+      console.error('collab: connection error', e.message)
+      ws.terminate()
+    })
     ws.on('message', (raw: RawData) => {
       try {
         onMessage(ws, conn, toBytes(raw))

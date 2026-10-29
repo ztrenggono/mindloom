@@ -251,8 +251,11 @@ export function importFiles(doc: Y.Doc, files: VaultFile[], { onlyNewer = false,
     else if (!onlyNewer || f.updatedAt > ((m.get('updatedAt') as number) ?? 0)) patchFile(doc, f.id, f)
   }
   for (const [id, at] of Object.entries(deletes)) {
-    const m = map.get(id)
-    if (m && ((m.get('updatedAt') as number) ?? 0) <= at && !m.get('deletedAt')) m.set('deletedAt', at)
+    // A deleted note usually has no copy left, but its tombstone must stay: a later import
+    // compares against it, so an older copy elsewhere cannot bring the note back.
+    if (!map.get(id)) writeFile(doc, { id, title: '', folder: '', doc: '', diagrams: [], whiteboard: null, layout: 'doc', createdAt: 0, updatedAt: 0 })
+    const m = map.get(id)!
+    if (((m.get('updatedAt') as number) ?? 0) <= at && ((m.get('deletedAt') as number) ?? 0) < at) m.set('deletedAt', at)
   }
 }
 
