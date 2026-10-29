@@ -39,10 +39,32 @@ services:
     build: ../frontend
     restart: unless-stopped
     ports:
+      # With HTTPS on, set WEB_PORT=127.0.0.1:8080 so plain HTTP is only reachable from this machine.
       - '${WEB_PORT:-8080}:80'
     depends_on:
       backend:
         condition: service_healthy
 
+  # HTTPS (optional): starts only with COMPOSE_PROFILES=https. Settings are in Caddyfile.
+  caddy:
+    image: caddy:2-alpine
+    profiles: [https]
+    restart: unless-stopped
+    ports:
+      - '${HTTP_PORT:-80}:80'
+      - '${HTTPS_PORT:-443}:443'
+    environment:
+      DOMAIN: ${DOMAIN:-localhost}
+      TLS: ${TLS:-internal}
+    volumes:
+      - ./Caddyfile:/etc/caddy/Caddyfile:ro
+      # Certificates and Caddy's internal certificate authority; keep this volume.
+      - caddy_data:/data
+      - caddy_config:/config
+    depends_on:
+      - web
+
 volumes:
   pgdata:
+  caddy_data:
+  caddy_config:
