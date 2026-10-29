@@ -1,8 +1,9 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState, type MouseEvent as RMouseEvent, type PointerEvent as RPointerEvent } from 'react'
-import { Activity, ChevronLeft, ChevronRight, Download, Maximize, Minus, Plus, Presentation, X } from 'lucide-react'
+import { Activity, Check, ChevronLeft, ChevronRight, Copy, Download, Maximize, Minus, Plus, Presentation, X } from 'lucide-react'
 import type { DiagramType } from '../types'
 import { parseErd, parseFlow, parseMindmap, parseSequence, type ParseError } from './parse'
 import type { Mark } from './diff'
+import { toMermaid } from './mermaid'
 import { renderErd } from './ErdRender'
 import { renderFlow } from './FlowRender'
 import { renderMindmap } from './MindRender'
@@ -122,6 +123,18 @@ export function DiagramView({ type, code, title, embedded: embeddedProp, selecte
       }
       return !a
     })
+  const [copied, setCopied] = useState(false)
+  // Clipboard can be refused (no permission, insecure origin), so fall back to a file.
+  const copyMermaid = async () => {
+    const mmd = toMermaid(type, code)
+    try {
+      await navigator.clipboard.writeText(mmd)
+      setCopied(true)
+      window.setTimeout(() => setCopied(false), 1500)
+    } catch {
+      download(URL.createObjectURL(new Blob([mmd], { type: 'text/plain' })), (title ?? 'diagram') + '.mmd')
+    }
+  }
   const wrap = useRef<HTMLDivElement>(null)
   const svg = useRef<SVGSVGElement>(null)
   const [view, setView] = useState({ x: 0, y: 0, k: 1 })
@@ -415,6 +428,10 @@ export function DiagramView({ type, code, title, embedded: embeddedProp, selecte
             <button title="Export PNG" onClick={() => exportSvg(svg.current, r, title ?? 'diagram', 'png')}>
               <Download size={14} />
               <span>PNG</span>
+            </button>
+            <button title="Copy as Mermaid, for GitHub, GitLab or Notion" onClick={copyMermaid}>
+              {copied ? <Check size={14} /> : <Copy size={14} />}
+              <span>{copied ? 'Copied' : 'Mermaid'}</span>
             </button>
           </>
         )}

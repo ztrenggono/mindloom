@@ -10,6 +10,7 @@ import { FileView } from './components/FileView'
 import { backlinks, extractLinks, findByTitle, uid } from './lib/links'
 import { wordCount } from './lib/markdown'
 import type { Hit } from './lib/search'
+import { convertMermaidFences, fromMermaid } from './dsl/mermaid'
 import { download } from './dsl/DiagramView'
 import { TEMPLATES } from './components/CanvasPanel'
 import { SaveIndicator } from './components/SaveIndicator'
@@ -82,11 +83,19 @@ export default function App() {
         } catch {
           alert('Not a valid Mindloom backup')
         }
+      } else if (/\.(mmd|mermaid)$/.test(f.name)) {
+        const d = fromMermaid(text)
+        if (!d) {
+          alert(`${f.name}: only Mermaid flowcharts, sequence diagrams, ER diagrams and mind maps can be imported`)
+          continue
+        }
+        const name = d.title ?? base
+        vault.createFile(name, file?.folder ?? '', { layout: 'canvas', doc: `# ${name}\n\nImported from \`${f.name}\`.\n`, diagrams: [{ id: uid(), title: name, type: d.type, code: d.code }] })
       } else if (/\.(eraser|txt|dsl)$/.test(f.name)) {
         const type: DiagramType = /^\s*\w+\s*(\[[^\]]*\])?\s*\{\s*\n\s*\w+\s+\w+/m.test(text) && /\.\w+\s*[<>-]/.test(text) ? 'erd' : /\bactivate\b|autoNumber/.test(text) ? 'sequence' : 'flowchart'
         vault.createFile(base, file?.folder ?? '', { layout: 'canvas', doc: `# ${base}\n\nImported from \`${f.name}\`.\n`, diagrams: [{ id: uid(), title: base, type, code: text }] })
       } else {
-        vault.createFile(base, file?.folder ?? '', { doc: text })
+        vault.createFile(base, file?.folder ?? '', { doc: convertMermaidFences(text) })
       }
     }
   }
@@ -133,7 +142,7 @@ export default function App() {
     { id: 'left', name: 'Toggle left sidebar', run: () => setLeftOpen((o) => !o) },
     { id: 'right', name: 'Toggle right sidebar', run: () => setRightOpen((o) => !o) },
     { id: 'theme', name: 'Toggle light / dark theme', run: () => vault.setTheme(state.theme === 'dark' ? 'light' : 'dark') },
-    { id: 'import', name: 'Import files (.md, .eraser, backup .json)', run: () => importRef.current?.click() },
+    { id: 'import', name: 'Import files (.md, .eraser, Mermaid .mmd, backup .json)', run: () => importRef.current?.click() },
     { id: 'export', name: 'Export vault backup (.json)', run: exportVault },
     { id: 'close', name: 'Close current tab', hotkey: 'Ctrl W', run: () => state.activeTab && vault.closeTab(state.activeTab) },
     { id: 'reset', name: 'Reset vault to sample notes', run: () => confirm('Delete every note and restore the samples?') && vault.reset() },
@@ -249,7 +258,7 @@ export default function App() {
             <FilePlus size={18} />
           </button>
           <div className="spacer" />
-          <button className="icon-btn" data-tip="Import .md / .eraser / backup" aria-label="Import .md / .eraser / backup" onClick={() => importRef.current?.click()}>
+          <button className="icon-btn" data-tip="Import .md / .eraser / .mmd / backup" aria-label="Import .md / .eraser / .mmd / backup" onClick={() => importRef.current?.click()}>
             <Upload size={18} />
           </button>
           <button className="icon-btn" data-tip="Export vault backup" aria-label="Export vault backup" onClick={exportVault}>
@@ -261,7 +270,7 @@ export default function App() {
           <button className="icon-btn" data-tip="Reset to sample vault" aria-label="Reset to sample vault" onClick={() => confirm('Delete every note and restore the samples?') && vault.reset()}>
             <RotateCcw size={18} />
           </button>
-          <input ref={importRef} type="file" multiple accept=".md,.markdown,.txt,.eraser,.json" hidden onChange={(e) => (onImport(e.target.files), (e.target.value = ''))} />
+          <input ref={importRef} type="file" multiple accept=".md,.markdown,.txt,.eraser,.mmd,.mermaid,.json" hidden onChange={(e) => (onImport(e.target.files), (e.target.value = ''))} />
         </nav>
 
         {leftMounted && (
