@@ -2333,3 +2333,83 @@ svg.lucide :is(path, line, polyline, polygon, rect, circle, ellipse) {
     transition: background-color 600ms ease-out;
   }
 }
+
+/* Live collaboration */
+.remote-caret {
+  position: absolute;
+  z-index: 5;
+  width: 2px;
+  margin-left: -1px;
+  background: var(--peer);
+  pointer-events: none;
+}
+.remote-caret-name {
+  position: absolute;
+  bottom: 100%;
+  left: -1px;
+  padding: 1px 5px;
+  border-radius: 4px 4px 4px 0;
+  background: var(--peer);
+  color: #fff;
+  font: 600 10.5px/1.4 Inter, system-ui, sans-serif;
+  white-space: nowrap;
+}
+.peers {
+  display: flex;
+  align-items: center;
+}
+.peer {
+  display: grid;
+  place-items: center;
+  width: 22px;
+  height: 22px;
+  margin-left: -5px;
+  border-radius: 50%;
+  border: 2px solid var(--bg-primary);
+  background: var(--peer);
+  color: #fff;
+  font-size: 10.5px;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+.peer:first-child {
+  margin-left: 0;
+}
+button.peer.me {
+  cursor: pointer;
+  padding: 0;
+}
+.merge-notice {
+  position: fixed;
+  right: 16px;
+  bottom: 36px;
+  z-index: 50;
+  max-width: min(380px, calc(100vw - 32px));
+  padding: 12px 14px;
+  border-radius: 10px;
+  background: var(--bg-secondary);
+  box-shadow: var(--shadow-border), var(--shadow);
+  font-size: 13px;
+  line-height: 1.5;
+}
+.merge-notice p {
+  margin: 0 0 6px;
+}
+.merge-notice .link {
+  margin-right: 8px;
+}
+.merge-notice .close {
+  position: absolute;
+  top: 6px;
+  right: 6px;
+}
+.presence {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+.presence .link,
+.merge-notice .link {
+  padding: 0;
+  font-size: inherit;
+}

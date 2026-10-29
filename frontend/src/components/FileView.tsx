@@ -1,4 +1,4 @@
-import { useRef, useState } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { BookOpen, Columns2, Download, FileText, MoreHorizontal, PanelRight, Pencil, Pin, Trash2 } from 'lucide-react'
 import type { Layout, VaultFile } from '../types'
 import type { Vault } from '../store'
@@ -29,6 +29,14 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
   const [split, setSplit] = useState(0.45)
   const [menu, setMenu] = useState(false)
   const body = useRef<HTMLDivElement>(null)
+  const here = vault.peers.filter((p) => p.fileId === file.id)
+  const { setViewing } = vault
+
+  // Tells others this note is open here, for the avatars in their header.
+  useEffect(() => {
+    setViewing(file.id)
+    return () => setViewing(null)
+  }, [file.id, setViewing])
 
   const startSplit = (e: React.PointerEvent) => {
     e.preventDefault()
@@ -67,6 +75,8 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
           onOpenLink={onOpenLink}
           onTag={onTag}
           scrollToLine={scrollToLine}
+          carets={vault.caretsIn(file.id, 'doc')}
+          onCursor={(i) => vault.setCursor(file.id, 'doc', i)}
         />
       </div>
     </div>
@@ -84,6 +94,8 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
       onUpsert={(d) => vault.upsertDiagram(file.id, d)}
       onDiagrams={(ds) => vault.patch(file.id, { diagrams: ds })}
       onWhiteboard={(els, files) => vault.patch(file.id, { whiteboard: els, whiteboardFiles: files })}
+      caretsIn={(id) => vault.caretsIn(file.id, id)}
+      onCursor={(id, i) => vault.setCursor(file.id, id, i)}
     />
   )
 
@@ -103,6 +115,16 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
           ))}
         </div>
         <div className="view-actions">
+          {here.length > 0 && (
+            <div className="peers" aria-label={`Also here: ${here.map((p) => p.name).join(', ')}`}>
+              {here.slice(0, 4).map((p) => (
+                <span key={p.id} className="peer" style={{ '--peer': p.color } as React.CSSProperties} data-tip={`${p.name} is here`}>
+                  {p.name.slice(0, 1)}
+                </span>
+              ))}
+              {here.length > 4 && <span className="peer" style={{ '--peer': 'var(--text-faint)' } as React.CSSProperties}>+{here.length - 4}</span>}
+            </div>
+          )}
           {file.layout !== 'canvas' && (
             <button className="icon-btn" title={mode === 'edit' ? 'Reading view (Ctrl+E)' : 'Edit (Ctrl+E)'} onClick={() => setMode(mode === 'edit' ? 'read' : 'edit')}>
               {mode === 'edit' ? <BookOpen size={16} /> : <Pencil size={16} />}

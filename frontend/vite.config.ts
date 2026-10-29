@@ -5,7 +5,7 @@ import react from '@vitejs/plugin-react'
 export default defineConfig({
   plugins: [react()],
   server: {
-    // The sync API lives in ../backend.
-    proxy: { '/api': 'http://localhost:8787' },
+    // The sync API lives in ../backend; ws carries the live-collaboration socket at /api/collab.
+    proxy: { '/api': { target: 'http://localhost:8787', ws: true } },
   },
 })
