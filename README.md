@@ -20,6 +20,8 @@ explain them.
 - **Live collaboration**: several people edit the same vault at once and see each other's edits,
   cursors and names as they type. Edits made offline merge in when the server is back, without
   overwriting anyone's work.
+- **Share links**: copy a link that opens a note, or one of its diagrams, for anyone on the same
+  server.
 - **Works offline**: edits save in the browser (IndexedDB) first and sync to PostgreSQL when the
   server is reachable.
 

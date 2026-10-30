@@ -1,6 +1,7 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Brain, Code2, GitBranch, GitCompare, PenTool, Plus, Table2, Trash2, Workflow, Cloud, X, CircleHelp, PanelLeft, PanelRight, CircleAlert, TriangleAlert, Info, ChevronDown, ChevronRight } from 'lucide-react'
 import type { Diagram, DiagramType, VaultFile } from '../types'
+import { canvasTab, WHITEBOARD } from '../lib/canvasTab'
 import type { RemoteCaret } from '../store'
 import { RemoteCarets } from './RemoteCarets'
 import { useKeepSelection } from '../lib/useKeepSelection'
@@ -121,7 +122,6 @@ interface Props {
   onCursor?: (diagramId: string, index: number | null) => void
 }
 
-export const WHITEBOARD = '__whiteboard__'
 
 export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, onDiagrams, onWhiteboard, active, setActive, caretsIn, onCursor }: Props) {
   const [diffOpen, setDiffOpen] = useState(false)
@@ -142,8 +142,7 @@ export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, 
       }
       return next
     })
-  const current = file.diagrams.find((d) => d.id === active)
-  const tab = current ? current.id : active === WHITEBOARD || !file.diagrams.length ? WHITEBOARD : file.diagrams[0].id
+  const tab = canvasTab(file, active)
   const diagram = file.diagrams.find((d) => d.id === tab)
   // Source line selected on the canvas or by the editor cursor.
   const [sel, setSel] = useState<number | null>(null)

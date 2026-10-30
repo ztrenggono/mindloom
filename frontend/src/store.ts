@@ -120,6 +120,8 @@ export function useVault() {
   const [status, setStatus] = useState<SaveStatus>({ local: 'loading', remote: 'syncing' })
   const [peers, setPeers] = useState<Peer[]>([])
   const [notice, setNotice] = useState<MergeNotice | null>(null)
+  /** True once the vault on screen is the server's, after any migration into it finished. */
+  const [live, setLive] = useState(false)
   const [me, setMe] = useState(loadName)
 
   // Refs, because Yjs and socket callbacks run outside React's render cycle.
@@ -233,6 +235,7 @@ export function useVault() {
           if (merged.length || kept.length) setNotice({ merged: titlesOf(data.current.files, merged), kept: titlesOf(data.current.files, kept) })
           offline.current.clear()
           touched.current.clear()
+          setLive(true)
           void save()
         },
       })
@@ -268,6 +271,7 @@ export function useVault() {
           doc.current = remote
           unbind = bind(remote)
           local.destroy()
+          setLive(true)
           void save()
         },
       })
@@ -525,6 +529,7 @@ export function useVault() {
     setViewing,
     setCursor,
     caretsIn,
+    live,
     notice,
     dismissNotice: () => setNotice(null),
   }
