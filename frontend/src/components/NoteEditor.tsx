@@ -204,6 +204,8 @@ function SourceEditor({ file, allTitles, onChange, scrollToLine, carets = [], on
         spellCheck={false}
         onChange={(e) => {
           onChange(e.target.value)
+          // Typing moves the caret without always firing select, so share it here too.
+          onCursor?.(e.target.selectionEnd)
           refreshSuggest(e.target)
         }}
         onKeyDown={onKey}

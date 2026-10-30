@@ -34,6 +34,10 @@ export default function App() {
   }, [leftOpen])
   // Start with the right panel closed on smaller screens so the note and canvas get the room.
   const [rightOpen, setRightOpen] = useState(() => window.innerWidth >= 1280)
+  // On a phone the sidebar covers the note, so it gets out of the way once a note opens.
+  useEffect(() => {
+    if (state.activeTab && matchMedia('(max-width: 640px)').matches) setLeftOpen(false)
+  }, [state.activeTab])
   const [query, setQuery] = useState('')
   const [palette, setPalette] = useState<null | 'commands' | 'files'>(null)
   const [modes, setModes] = useState<Record<string, 'edit' | 'read'>>({})
@@ -333,15 +337,15 @@ export default function App() {
         <Presence vault={vault} />
         {file ? (
           <>
-            <span>{backlinks(state.files, file).length} backlinks</span>
-            <span>{extractLinks(file.doc).length} links</span>
-            <span>{file.diagrams.length} diagrams</span>
-            <span>{wordCount(file.doc)} words</span>
-            <span>{file.doc.length} characters</span>
+            <span className="stat">{backlinks(state.files, file).length} backlinks</span>
+            <span className="stat">{extractLinks(file.doc).length} links</span>
+            <span className="stat">{file.diagrams.length} diagrams</span>
+            <span className="stat">{wordCount(file.doc)} words</span>
+            <span className="stat">{file.doc.length} characters</span>
             <span className="muted">{mode === 'edit' ? 'Editing' : 'Reading'}</span>
           </>
         ) : (
-          <span>{Object.keys(state.files).length} notes</span>
+          <span className="stat">{Object.keys(state.files).length} notes</span>
         )}
       </footer>
 
