@@ -16,6 +16,7 @@ import { TEMPLATES } from './components/CanvasPanel'
 import { SaveIndicator } from './components/SaveIndicator'
 import { MergeNoticeCard, Presence } from './components/Presence'
 import { linkHash, parseLink, type Target } from './lib/shareLink'
+import { canvasTab } from './lib/canvasTab'
 import { Tooltip } from './components/Tooltip'
 
 /** Matches the .sidebar.closing transition in index.css. */
@@ -56,8 +57,8 @@ export default function App() {
     if (!wanted) return
     const f = state.files[wanted.fileId]
     if (!f) {
-      // Only once the server's copy is in can a missing note be called missing.
-      if (vault.status.local === 'loading' || vault.status.remote !== 'synced') return
+      // Only once this browser shows the server's vault can a missing note be called missing.
+      if (!vault.live) return
       setMissing(true)
       setWanted(null)
       return
@@ -77,7 +78,7 @@ export default function App() {
   const titles = useMemo(() => Object.values(state.files).map((f) => f.title), [state.files])
 
   // The address bar always links to what is open, so it can be copied from there too.
-  const shownDiagram = file && file.layout !== 'doc' ? activeDiagram[file.id] : undefined
+  const shownDiagram = file && file.layout !== 'doc' ? canvasTab(file, activeDiagram[file.id] ?? '') : undefined
   useEffect(() => {
     if (wanted || vault.status.local === 'loading') return
     const hash = file ? linkHash({ fileId: file.id, diagramId: shownDiagram || undefined }) : ''

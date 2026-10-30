@@ -6,6 +6,7 @@ import { NoteEditor } from './NoteEditor'
 import { CanvasPanel } from './CanvasPanel'
 import { download } from '../dsl/DiagramView'
 import { linkUrl } from '../lib/shareLink'
+import { canvasTab } from '../lib/canvasTab'
 
 interface Props {
   file: VaultFile
@@ -56,7 +57,7 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
 
   /** Copies a link to this note, and to the diagram on screen when the canvas shows. */
   const copyLink = async () => {
-    const url = linkUrl({ fileId: file.id, diagramId: file.layout !== 'doc' ? activeDiagram || undefined : undefined })
+    const url = linkUrl({ fileId: file.id, diagramId: file.layout !== 'doc' ? canvasTab(file, activeDiagram) : undefined })
     try {
       await navigator.clipboard.writeText(url)
     } catch {
