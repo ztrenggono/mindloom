@@ -408,7 +408,7 @@ function CodeEditor({ diagram, titles, side, onFlipSide, onChange, selected, onC
             className="code-editor"
             spellCheck={false}
             value={diagram.code}
-            onChange={(e) => onChange(e.target.value)}
+            onChange={(e) => (onChange(e.target.value), onCursor(e.target.selectionEnd))}
             onSelect={(e) => (cursorLine(e.currentTarget), onCursor(e.currentTarget.selectionEnd))}
             onBlur={() => onCursor(null)}
             onKeyDown={(e) => {
