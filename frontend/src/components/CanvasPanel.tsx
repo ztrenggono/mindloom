@@ -237,14 +237,14 @@ export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, 
         </div>
         <div className="spacer" />
         {diagram && (
-          <>
+          <div className="canvas-tab-actions">
             <button className={'icon-btn' + (diffOpen ? ' on' : '')} title="Compare versions" onClick={() => setDiffOpen((o) => !o)}>
               <GitCompare size={15} />
             </button>
             <button className={'icon-btn' + (showCode ? ' on' : '')} title="Toggle code editor" onClick={() => setShowCode((s) => !s)}>
               <Code2 size={15} />
             </button>
-          </>
+          </div>
         )}
       </div>
       <div className="canvas-body">

@@ -247,7 +247,7 @@ mark {
 }
 
 .sidebar,
-.right {
+aside.right {
   width: 260px;
   flex-shrink: 0;
   background: var(--bg-secondary);
@@ -258,7 +258,7 @@ mark {
 .sidebar {
   border-right: 1px solid var(--border);
 }
-.right {
+aside.right {
   border-left: 1px solid var(--border);
   width: 290px;
 }
@@ -774,6 +774,16 @@ a.tag {
   background: var(--bg-secondary);
   flex-shrink: 0;
   overflow-x: auto;
+}
+/* Stays in view when many diagram tabs scroll the bar sideways. */
+.canvas-tab-actions {
+  position: sticky;
+  right: -8px;
+  display: flex;
+  gap: 4px;
+  margin-right: -8px;
+  padding: 0 8px 0 6px;
+  background: var(--bg-secondary);
 }
 .canvas-tab {
   display: flex;
@@ -1638,7 +1648,8 @@ svg.lucide :is(path, line, polyline, polygon, rect, circle, ellipse) {
 }
 
 @media (max-width: 900px) {
-  .right {
+  /* The right sidebar only: .code-pane.right also carries the class. */
+  aside.right {
     display: none;
   }
   .segmented span {
@@ -1646,12 +1657,16 @@ svg.lucide :is(path, line, polyline, polygon, rect, circle, ellipse) {
   }
 }
 @media (max-width: 640px) {
+  .ribbon {
+    width: 40px;
+  }
   .sidebar {
     position: absolute;
     z-index: 30;
-    left: 44px;
+    left: 40px;
     top: 38px;
     bottom: 24px;
+    max-width: calc(100vw - 56px);
     box-shadow: var(--shadow);
   }
   .note-container {
@@ -1659,6 +1674,68 @@ svg.lucide :is(path, line, polyline, polygon, rect, circle, ellipse) {
   }
   .view-header {
     grid-template-columns: 1fr auto auto;
+    padding: 0 8px;
+  }
+  /* Document + Canvas: one above the other, since side by side leaves a few words per line. */
+  .view-body {
+    flex-direction: column;
+  }
+  .split-left {
+    width: auto !important;
+    flex: 1 1 50%;
+    min-height: 0;
+  }
+  .split-handle {
+    display: none;
+  }
+  .split-right {
+    flex: 1 1 50%;
+    min-height: 0;
+    border-top: 1px solid var(--border);
+  }
+  /* The code editor sits above the diagram, full width, instead of beside it. */
+  .canvas-body {
+    flex-direction: column;
+  }
+  .canvas-body > .code-pane,
+  .canvas-body > .code-pane.right {
+    position: relative;
+    order: 0;
+    width: auto !important;
+    max-width: none;
+    min-width: 0;
+    flex: 0 0 45%;
+    min-height: 0;
+    border: 0;
+    border-bottom: 1px solid var(--border);
+    box-shadow: none;
+  }
+  .code-pane .resize-x {
+    display: none;
+  }
+  .canvas-stage {
+    min-height: 0;
+  }
+  /* Status bar: where the latest edit is and who is here; the counts make room. */
+  .statusbar {
+    gap: 10px;
+    padding: 0 10px;
+    white-space: nowrap;
+    overflow: hidden;
+  }
+  .statusbar .stat {
+    display: none;
+  }
+}
+/* Diagram toolbar in a narrow canvas: icons only, and it never runs past the edge. */
+@container (max-width: 520px) {
+  .diagram-tools {
+    left: 10px;
+    right: 10px;
+    justify-content: center;
+  }
+  .diagram-tools button span {
+    display: none;
   }
 }
 
