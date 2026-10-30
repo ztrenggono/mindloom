@@ -15,6 +15,7 @@ import { download } from './dsl/DiagramView'
 import { TEMPLATES } from './components/CanvasPanel'
 import { SaveIndicator } from './components/SaveIndicator'
 import { MergeNoticeCard, Presence } from './components/Presence'
+import { linkHash, parseLink, type Target } from './lib/shareLink'
 import { Tooltip } from './components/Tooltip'
 
 /** Matches the .sidebar.closing transition in index.css. */
@@ -41,11 +42,47 @@ export default function App() {
   // Tied to a file, so opening another note later does not replay an old jump.
   const [scrollTo, setScrollTo] = useState<{ fileId: string; line: number; n: number } | undefined>()
   const importRef = useRef<HTMLInputElement>(null)
+  // A shared link waiting for its note, which may arrive only after the first sync.
+  const [wanted, setWanted] = useState<Target | null>(() => parseLink(location.hash))
+  const [missing, setMissing] = useState(false)
+
+  useEffect(() => {
+    const onHash = () => setWanted(parseLink(location.hash))
+    window.addEventListener('hashchange', onHash)
+    return () => window.removeEventListener('hashchange', onHash)
+  }, [])
+
+  useEffect(() => {
+    if (!wanted) return
+    const f = state.files[wanted.fileId]
+    if (!f) {
+      // Only once the server's copy is in can a missing note be called missing.
+      if (vault.status.local === 'loading' || vault.status.remote !== 'synced') return
+      setMissing(true)
+      setWanted(null)
+      return
+    }
+    setWanted(null)
+    setMissing(false)
+    vault.open(f.id)
+    if (wanted.diagramId) {
+      if (f.layout === 'doc') vault.patch(f.id, { layout: 'both' })
+      setActiveDiagram((s) => ({ ...s, [f.id]: wanted.diagramId! }))
+    }
+  }, [wanted, state.files, vault])
 
   const file = state.activeTab && state.activeTab !== GRAPH_TAB ? (state.files[state.activeTab] ?? null) : null
   const mode = file ? (modes[file.id] ?? 'read') : 'read'
   const setMode = (m: 'edit' | 'read') => file && setModes((s) => ({ ...s, [file.id]: m }))
   const titles = useMemo(() => Object.values(state.files).map((f) => f.title), [state.files])
+
+  // The address bar always links to what is open, so it can be copied from there too.
+  const shownDiagram = file && file.layout !== 'doc' ? activeDiagram[file.id] : undefined
+  useEffect(() => {
+    if (wanted || vault.status.local === 'loading') return
+    const hash = file ? linkHash({ fileId: file.id, diagramId: shownDiagram || undefined }) : ''
+    if (location.hash !== hash) history.replaceState(null, '', hash || location.pathname + location.search)
+  }, [file, shownDiagram, wanted, vault.status.local])
 
   const openTitle = useCallback(
     (id: string | null, title: string, newTab = false) => {
@@ -345,6 +382,14 @@ export default function App() {
         )}
       </footer>
 
+      {missing && (
+        <div className="merge-notice" role="status">
+          <button className="icon-btn tiny close" aria-label="Dismiss" onClick={() => setMissing(false)}>
+            <X size={13} />
+          </button>
+          <p>This link points to a note that is not in this vault. It may have been deleted, or it lives on another server.</p>
+        </div>
+      )}
       {vault.notice && <MergeNoticeCard notice={vault.notice} onOpen={(id) => vault.open(id)} onClose={vault.dismissNotice} />}
 
       {palette && (

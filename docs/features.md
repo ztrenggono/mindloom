@@ -13,4 +13,6 @@
 
 Kolaborasi live: beberapa orang bisa mengedit vault yang sama bersamaan dan melihat ketikan, kursor, serta nama satu sama lain secara langsung. Klik nama Anda di status bar untuk menggantinya. Edit yang dibuat saat offline digabung otomatis ketika server tersambung lagi, tanpa menimpa edit orang lain, dan aplikasi memberi tahu catatan mana saja yang digabung.
 
+Bagikan catatan: menu **⋯ → Copy link** menyalin link yang langsung membuka catatan itu, termasuk diagram yang sedang tampil di canvas. Alamat di browser juga selalu menunjuk catatan yang terbuka. Penerima link perlu akses ke server yang sama (dan token-nya); orang di luar server bisa dikirimi export Markdown, gambar SVG / PNG, atau kode Mermaid.
+
 Rename catatan otomatis memperbarui semua `[[link]]` yang menunjuk ke catatan itu. Backup / restore seluruh vault lewat tombol export / import (JSON).

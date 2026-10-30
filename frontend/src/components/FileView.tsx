@@ -1,10 +1,11 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Columns2, Download, FileText, MoreHorizontal, PanelRight, Pencil, Pin, Trash2 } from 'lucide-react'
+import { BookOpen, Check, Columns2, Download, FileText, Link, MoreHorizontal, PanelRight, Pencil, Pin, Trash2 } from 'lucide-react'
 import type { Layout, VaultFile } from '../types'
 import type { Vault } from '../store'
 import { NoteEditor } from './NoteEditor'
 import { CanvasPanel } from './CanvasPanel'
 import { download } from '../dsl/DiagramView'
+import { linkUrl } from '../lib/shareLink'
 
 interface Props {
   file: VaultFile
@@ -28,6 +29,7 @@ const LAYOUTS: { id: Layout; label: string; icon: typeof FileText }[] = [
 export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram, setActiveDiagram, onOpenLink, onTag, scrollToLine }: Props) {
   const [split, setSplit] = useState(0.45)
   const [menu, setMenu] = useState(false)
+  const [copied, setCopied] = useState(false)
   const body = useRef<HTMLDivElement>(null)
   const here = vault.peers.filter((p) => p.fileId === file.id)
   const { setViewing } = vault
@@ -50,6 +52,20 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
     document.body.classList.add('resizing')
     window.addEventListener('pointermove', move)
     window.addEventListener('pointerup', up)
+  }
+
+  /** Copies a link to this note, and to the diagram on screen when the canvas shows. */
+  const copyLink = async () => {
+    const url = linkUrl({ fileId: file.id, diagramId: file.layout !== 'doc' ? activeDiagram || undefined : undefined })
+    try {
+      await navigator.clipboard.writeText(url)
+    } catch {
+      // Clipboard blocked (e.g. plain http on a LAN address): show it to copy by hand.
+      window.prompt('Link to this note', url)
+      return setMenu(false)
+    }
+    setCopied(true)
+    window.setTimeout(() => (setCopied(false), setMenu(false)), 1200)
   }
 
   const exportMd = () => {
@@ -138,6 +154,9 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
               <div className="menu right" onMouseLeave={() => setMenu(false)}>
                 <button className="menu-item" onClick={() => (vault.patch(file.id, { pinned: !file.pinned }), setMenu(false))}>
                   <Pin size={14} /> {file.pinned ? 'Unpin' : 'Pin'}
+                </button>
+                <button className="menu-item" onClick={copyLink}>
+                  {copied ? <Check size={14} /> : <Link size={14} />} {copied ? 'Link copied' : 'Copy link'}
                 </button>
                 <button className="menu-item" onClick={() => (exportMd(), setMenu(false))}>
                   <Download size={14} /> Export as Markdown

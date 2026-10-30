@@ -114,6 +114,10 @@ without any extra step.
 The browser keeps the token in its localStorage, so this is needed once per browser. Edits made
 before the token is entered are kept in the browser and sync afterwards.
 
+To point someone at one note, open it and use **⋯ → Copy link** (or copy the address bar). The
+link opens that note, and the diagram on screen if the canvas is showing, for anyone who has the
+token. It does not work for people without access to this server.
+
 Share the token over a private channel, such as a password manager or a direct message, not a
 group chat or a mass email. Everyone with the token shares the same vault and can read and change
 all of it.
