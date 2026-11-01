@@ -41,6 +41,15 @@ describe('anchored comments', () => {
     importDoc(server, local)
     expect(readThreads(server, 'n')[0].anchor).toMatchObject({ start: 7, end: 12, missing: false })
   })
+  it('preserves newer deleted content and comments when joining an older server copy', () => {
+    const local = setup(); patchFile(local, 'n', { doc: 'hello updated world', updatedAt: 10 })
+    addThread(local, 'n', thread()); deleteFile(local, 'n', 20)
+    const server = setup(); importDoc(server, local)
+    expect(readVault(server).trash.n.doc).toBe('hello updated world')
+    restoreFile(server, 'n', 21)
+    expect(readThreads(server, 'n')[0].anchor.missing).toBe(false)
+    expect(readVault(server).files.n.doc).toBe('hello updated world')
+  })
   it('round-trips through JSON backup, Trash, restore, and provisional migration', () => {
     const a = setup(); addThread(a, 'n', thread())
     const snapshot = JSON.parse(JSON.stringify(readVault(a).files.n)) as VaultFile

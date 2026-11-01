@@ -323,7 +323,11 @@ export function importDoc(to: Y.Doc, from: Y.Doc) {
     if (isVisible(m)) files.push(readFile(m))
     else {
       // Preserve recoverable content when a provisional vault first joins the server.
-      if (!filesOf(to).has(id)) writeFile(to, readFile(m))
+      const existing = filesOf(to).get(id)
+      const file = readFile(m)
+      if (!existing) writeFile(to, file)
+      else if (file.updatedAt > updatedAtOf(existing)) patchFile(to, id, file)
+      else for (const thread of file.comments ?? []) addThread(to, id, thread)
       deletes[id] = deletedAtOf(m)
     }
   })
