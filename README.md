@@ -34,6 +34,16 @@ explain them.
 
 **Work together**
 
+- **Anchored comments**: select text in editing mode (or a plain-text passage in reading mode),
+  then choose **Comment on selection**. Diagram objects have **Comment on object**. Reply,
+  resolve or reopen threads from **Comments** in the note header; anchors follow collaborative
+  text edits, and threads remain available if the original section is removed.
+- **Object-to-note links**: select an object on the canvas or in the **Object** picker, choose
+  its **Note**, then use **Open note** or the badge on the object. New links use note IDs and
+  survive renaming. Only explicitly declared objects can be linked; declare implicit nodes
+  separately in the diagram code first.
+
+
 - **Live collaboration**: several people edit the same vault at once and see each other's
   typing, cursors and names.
 - **Offline first**: edits save in the browser first. Edits made offline merge in when the

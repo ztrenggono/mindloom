@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState, type KeyboardEvent, type MouseEvent } from 'react'
-import type { VaultFile } from '../types'
+import type { CommentAnchor, VaultFile } from '../types'
 import { DiagramView } from '../dsl/DiagramView'
 import { renderNote, toggleTask } from '../lib/markdown'
 import { caretXY } from '../lib/caret'
@@ -11,6 +11,7 @@ interface Props {
   file: VaultFile
   allTitles: string[]
   mode: 'edit' | 'read'
+  onComment?: (anchor: CommentAnchor) => void
   onChange: (doc: string) => void
   onOpenLink: (title: string, newTab: boolean) => void
   onTag: (tag: string) => void
@@ -21,15 +22,25 @@ interface Props {
   onCursor?: (index: number | null) => void
 }
 
-export function NoteEditor({ file, allTitles, mode, onChange, onOpenLink, onTag, scrollToLine, carets = [], onCursor }: Props) {
+export function NoteEditor({ file, allTitles, mode, onChange, onOpenLink, onTag, scrollToLine, carets = [], onCursor, onComment }: Props) {
   return mode === 'edit' ? (
-    <SourceEditor file={file} allTitles={allTitles} onChange={onChange} scrollToLine={scrollToLine} carets={carets} onCursor={onCursor} />
+    <SourceEditor file={file} allTitles={allTitles} onChange={onChange} scrollToLine={scrollToLine} carets={carets} onCursor={onCursor} onComment={onComment} />
   ) : (
-    <Reading file={file} onChange={onChange} onOpenLink={onOpenLink} onTag={onTag} scrollToLine={scrollToLine} />
+    <Reading file={file} onChange={onChange} onOpenLink={onOpenLink} onTag={onTag} scrollToLine={scrollToLine} onComment={onComment} />
   )
 }
 
-function Reading({ file, onChange, onOpenLink, onTag, scrollToLine }: Omit<Props, 'mode' | 'allTitles' | 'carets' | 'onCursor'>) {
+function Reading({ file, onChange, onOpenLink, onTag, scrollToLine, onComment }: Omit<Props, 'mode' | 'allTitles' | 'carets' | 'onCursor'>) {
+  const [selection, setSelection] = useState<CommentAnchor | null>(null)
+  const captureSelection = () => {
+    const selected = window.getSelection()
+    const quote = selected?.toString().trim() ?? ''
+    if (!quote || !ref.current?.contains(selected?.anchorNode ?? null) || !ref.current?.contains(selected?.focusNode ?? null)) return setSelection(null)
+    const start = file.doc.indexOf(quote)
+    // Ambiguous or formatted selections can be precisely selected in editing mode.
+    if (start < 0 || file.doc.indexOf(quote, start + 1) >= 0) return setSelection(null)
+    setSelection({ field: 'doc', start, end: start + quote.length, quote })
+  }
   // The inline title already shows the note name, so drop a matching leading H1.
   const segs = useMemo(() => {
     const m = /^#\s+(.+)\n?/.exec(file.doc)
@@ -80,7 +91,8 @@ function Reading({ file, onChange, onOpenLink, onTag, scrollToLine }: Omit<Props
   }
 
   return (
-    <div className="reading markdown" ref={ref} onClick={onClick}>
+    <div className="reading markdown" ref={ref} onClick={onClick} onMouseUp={captureSelection} onKeyUp={captureSelection}>
+      {selection && onComment && <button className="btn selection-comment" onMouseDown={(e) => e.preventDefault()} onClick={(e) => { e.stopPropagation(); onComment(selection); setSelection(null) }}>Comment on selection</button>}
       {segs.map((s, i) =>
         s.kind === 'html' ? (
           <div key={i} dangerouslySetInnerHTML={{ __html: s.html }} />
@@ -94,7 +106,8 @@ function Reading({ file, onChange, onOpenLink, onTag, scrollToLine }: Omit<Props
   )
 }
 
-function SourceEditor({ file, allTitles, onChange, scrollToLine, carets = [], onCursor }: Omit<Props, 'mode' | 'onOpenLink' | 'onTag'>) {
+function SourceEditor({ file, allTitles, onChange, scrollToLine, carets = [], onCursor, onComment }: Omit<Props, 'mode' | 'onOpenLink' | 'onTag'>) {
+  const [selection, setSelection] = useState<CommentAnchor | null>(null)
   const ta = useRef<HTMLTextAreaElement>(null)
   useKeepSelection(ta, file.doc)
   const [suggest, setSuggest] = useState<{ query: string; start: number; x: number; y: number; sel: number } | null>(null)
@@ -197,6 +210,8 @@ function SourceEditor({ file, allTitles, onChange, scrollToLine, carets = [], on
 
   return (
     <div className="source">
+      {selection && onComment && <button className="btn selection-comment" onMouseDown={(e) => e.preventDefault()} onClick={() => onComment(selection)}>Comment on selection</button>}
+
       <textarea
         ref={ta}
         className="source-editor"
@@ -211,7 +226,11 @@ function SourceEditor({ file, allTitles, onChange, scrollToLine, carets = [], on
         onKeyDown={onKey}
         onKeyUp={(e) => !['ArrowDown', 'ArrowUp', 'Enter'].includes(e.key) && refreshSuggest(e.currentTarget)}
         onClick={(e) => refreshSuggest(e.currentTarget)}
-        onSelect={(e) => onCursor?.(e.currentTarget.selectionEnd)}
+        onSelect={(e) => {
+          const { selectionStart: start, selectionEnd: end, value } = e.currentTarget
+          onCursor?.(end)
+          setSelection(end > start ? { field: 'doc', start, end, quote: value.slice(start, end) } : null)
+        }}
         onBlur={() => (setTimeout(() => setSuggest(null), 150), onCursor?.(null))}
         placeholder="Start writing… use [[ to link notes"
       />

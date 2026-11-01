@@ -118,7 +118,7 @@ export function LinkBadge({ to, x, y }: { to?: string; x: number; y: number }) {
   if (!to) return null
   return (
     <g className="d-link" data-link={to}>
-      <title>{`Open note "${to}" (or Ctrl+click the shape)`}</title>
+      <title>{to.startsWith('note:') ? 'Open linked note (or Ctrl+click the shape)' : `Open note "${to}" (or Ctrl+click the shape)`}</title>
       <circle cx={x} cy={y} r={9.5} />
       <SvgIcon name="file-text" x={x - 5.5} y={y - 5.5} size={11} color="currentColor" />
     </g>

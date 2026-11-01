@@ -1,7 +1,8 @@
 import { useCallback, useEffect, useMemo, useReducer, useRef, useState } from 'react'
 import * as Y from 'yjs'
+import { addThread, replyToThread, resolveThread } from './lib/comments'
 import { seedState } from './seed'
-import { GRAPH_TAB, type Diagram, type VaultFile, type VaultState } from './types'
+import { GRAPH_TAB, type CommentAnchor, type Diagram, type VaultFile, type VaultState } from './types'
 import { findByTitle, uid } from './lib/links'
 import { idbGet, idbSetMany } from './lib/idb'
 import { CollabClient, type RemoteStatus } from './lib/collab'
@@ -412,6 +413,21 @@ export function useVault() {
     return {
       patch: (id: string, patch: Partial<VaultFile>) => edit((d) => patchFile(d, id, patch)),
       remove: (id: string) => edit((d) => deleteFile(d, id)),
+      addComment: (id: string, anchor: CommentAnchor, body: string) => edit((d) => {
+        if (!body.trim()) return
+        const text = textOf(d, id, anchor.field)?.toString()
+        if (text !== undefined && text.slice(anchor.start, anchor.end) !== anchor.quote) {
+          const start = text.indexOf(anchor.quote)
+          anchor = start >= 0 && text.indexOf(anchor.quote, start + 1) < 0
+            ? { ...anchor, start, end: start + anchor.quote.length }
+            : { ...anchor, missing: true }
+        }
+        addThread(d, id, { id: uid(), author: name.current, body: body.trim(), createdAt: Date.now(), anchor, resolved: false, replies: [] })
+      }),
+      replyComment: (id: string, threadId: string, body: string) => edit((d) => {
+        if (body.trim()) replyToThread(d, id, threadId, { id: uid(), author: name.current, body: body.trim(), createdAt: Date.now() })
+      }),
+      resolveComment: (id: string, threadId: string, resolved: boolean) => edit((d) => resolveThread(d, id, threadId, resolved)),
       restore: (id: string) => edit((d) => restoreFile(d, id)),
       restoreAll: () => edit((d) => {
         for (const id of Object.keys(readVault(d).trash)) restoreFile(d, id)

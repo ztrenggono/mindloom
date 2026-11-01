@@ -94,6 +94,7 @@ export default function App() {
       if (id) return vault.open(id, newTab)
       const existing = findByTitle(state.files, title)
       if (existing) return vault.open(existing.id, newTab)
+      if (title.startsWith('note:')) { setMissing(true); return }
       const f = vault.createFile(title, file?.folder ?? '')
       setModes((s) => ({ ...s, [f.id]: 'edit' }))
     },

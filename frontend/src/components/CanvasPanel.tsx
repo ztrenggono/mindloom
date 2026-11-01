@@ -1,6 +1,6 @@
 import { lazy, Suspense, useEffect, useMemo, useRef, useState } from 'react'
 import { Brain, Code2, GitBranch, GitCompare, PenTool, Plus, Table2, Trash2, Workflow, Cloud, X, CircleHelp, PanelLeft, PanelRight, CircleAlert, TriangleAlert, Info, ChevronDown, ChevronRight } from 'lucide-react'
-import type { Diagram, DiagramType, VaultFile } from '../types'
+import type { CommentAnchor, Diagram, DiagramType, VaultFile } from '../types'
 import { canvasTab, WHITEBOARD } from '../lib/canvasTab'
 import type { RemoteCaret } from '../store'
 import { RemoteCarets } from './RemoteCarets'
@@ -12,6 +12,7 @@ import { InsertPanel, type InsertAsset } from './InsertPanel'
 import type { Template } from '../templates'
 import { highlight } from '../dsl/highlight'
 import { lintDiagram, type Issue, type Severity } from '../dsl/lint'
+import { diagramObjects, setObjectLink } from '../lib/diagramObjects'
 import { DiffView } from './DiffView'
 
 const Whiteboard = lazy(() => import('./Whiteboard'))
@@ -105,6 +106,8 @@ Product Launch [icon: rocket]
 export const TYPE_ICON: Record<DiagramType, typeof Table2> = { erd: Table2, flowchart: Workflow, sequence: GitBranch, cloud: Cloud, mindmap: Brain }
 
 interface Props {
+  onComment?: (anchor: CommentAnchor) => void
+  jumpTo?: { diagramId: string; line: number; n: number }
   file: VaultFile
   /** Whole vault, for comparing against diagrams in other notes. */
   files: Record<string, VaultFile>
@@ -123,7 +126,7 @@ interface Props {
 }
 
 
-export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, onDiagrams, onWhiteboard, active, setActive, caretsIn, onCursor }: Props) {
+export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, onDiagrams, onWhiteboard, active, setActive, caretsIn, onCursor, onComment, jumpTo }: Props) {
   const [diffOpen, setDiffOpen] = useState(false)
   // Fixed position so the panel escapes the tab bar's overflow clipping
   const [menu, setMenu] = useState<{ top: number; left: number; right: number } | null>(null)
@@ -150,6 +153,21 @@ export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, 
     setSel(null)
     setDiffOpen(false)
   }, [tab])
+
+  useEffect(() => {
+    if (jumpTo?.diagramId === tab) { setSel(jumpTo.line); setShowCode(true); setDiffOpen(false) }
+  }, [jumpTo, tab])
+  const objects = useMemo(() => diagram ? diagramObjects(diagram.type, diagram.code) : [], [diagram])
+  const selectedObject = objects.find((o) => o.line === sel)
+  const linkedFile = selectedObject?.link ? (selectedObject.link.startsWith('note:') ? files[selectedObject.link.slice(5)] : Object.values(files).find((f) => f.title.toLowerCase() === selectedObject.link?.toLowerCase())) : undefined
+  const linkedValue = linkedFile ? 'note:' + linkedFile.id : selectedObject?.link?.startsWith('note:') ? selectedObject.link : ''
+  const commentOnObject = () => {
+    if (!diagram || !sel) return
+    const lines = diagram.code.split('\n')
+    const start = lines.slice(0, sel - 1).reduce((n, l) => n + l.length + 1, 0)
+    const quote = lines[sel - 1] ?? ''
+    if (quote.trim()) onComment?.({ field: diagram.id, start, end: start + quote.length, quote })
+  }
 
   const pick = (line: number | null) => {
     setSel(line)
@@ -246,6 +264,19 @@ export function CanvasPanel({ file, files, titles, onOpenLink, theme, onUpsert, 
           </div>
         )}
       </div>
+      {diagram && !diffOpen && <div className="object-actions">
+        <label>Object <select aria-label="Select diagram object" value={selectedObject?.line ?? ''} onChange={(e) => pick(Number(e.target.value) || null)}>
+          <option value="">Select an object…</option>
+          {objects.map((o) => <option key={o.line} value={o.line}>{o.label}</option>)}
+        </select></label>
+        {selectedObject && <label>Note <select aria-label="Linked note" value={linkedValue} onChange={(e) => onUpsert({ ...diagram, code: setObjectLink(diagram.code, selectedObject.line, e.target.value) })}>
+          <option value="">No linked note</option>
+          {Object.values(files).sort((a, b) => a.title.localeCompare(b.title)).map((f) => <option key={f.id} value={'note:' + f.id}>{f.title}</option>)}
+          {selectedObject.link?.startsWith('note:') && !files[selectedObject.link.slice(5)] && <option value={selectedObject.link}>Note in Trash or unavailable</option>}
+        </select></label>}
+        {selectedObject?.link && <button className="btn" onClick={() => onOpenLink(selectedObject.link!, false)}>Open note</button>}
+        {sel && onComment && <button className="btn" onClick={commentOnObject}>Comment on object</button>}
+      </div>}
       <div className="canvas-body">
         {diagram && diffOpen ? (
           <DiffView diagram={diagram} file={file} files={files} onUpsert={onUpsert} onClose={() => setDiffOpen(false)} />
