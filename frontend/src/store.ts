@@ -6,7 +6,7 @@ import { findByTitle, uid } from './lib/links'
 import { idbGet, idbSetMany } from './lib/idb'
 import { CollabClient, type RemoteStatus } from './lib/collab'
 import { loadName, loadToken, saveName, saveToken, type LegacyPending, type LegacySnapshot } from './lib/sync'
-import { deleteFile, deletedAtOf, filesOf, foldersOf, importDoc, importFiles, isVisible, patchFile, readFile, readVault, textOf, touchedIds, writeFile } from './lib/vaultDoc'
+import { deleteFile, deletedAtOf, filesOf, foldersOf, importDoc, importFiles, isVisible, patchFile, readFile, readVault, restoreFile, textOf, touchedIds, writeFile } from './lib/vaultDoc'
 
 /** Pre-IndexedDB storage; read once to migrate, then left alone. */
 const LEGACY_KEY = 'inkvault:v1'
@@ -52,7 +52,7 @@ export interface MergeNotice {
 type Ui = Pick<VaultState, 'openTabs' | 'activeTab' | 'theme'>
 
 type Action =
-  | { t: 'data'; files: VaultState['files']; folders: string[] }
+  | { t: 'data'; files: VaultState['files']; folders: string[]; trash?: VaultState['trash'] }
   | { t: 'ui'; ui: Ui }
   | { t: 'open'; id: string; newTab?: boolean }
   | { t: 'closeTab'; id: string }
@@ -71,7 +71,7 @@ function fixTabs(s: VaultState): VaultState {
 function reducer(s: VaultState, a: Action): VaultState {
   switch (a.t) {
     case 'data':
-      return fixTabs({ ...s, files: a.files, folders: a.folders })
+      return fixTabs({ ...s, files: a.files, folders: a.folders, trash: a.trash })
     case 'ui':
       return fixTabs({ ...s, ...a.ui })
     case 'open': {
@@ -129,7 +129,7 @@ export function useVault() {
   stateRef.current = state
   const doc = useRef<Y.Doc | null>(null)
   const client = useRef<CollabClient | null>(null)
-  const data = useRef({ files: EMPTY.files, folders: EMPTY.folders })
+  const data = useRef({ files: EMPTY.files, folders: EMPTY.folders, trash: {} as NonNullable<VaultState['trash']> })
   const flags = useRef({ provisional: false, fresh: false })
   /** Notes edited here while disconnected, and notes the server changed since reconnecting. */
   const offline = useRef(new Set<string>())
@@ -179,12 +179,15 @@ export function useVault() {
         else if (tr.local && !client.current?.connected) ids.forEach((id) => offline.current.add(id))
         if (tr.local) flags.current.fresh = false
         const next = { ...data.current.files }
+        const trash = { ...data.current.trash }
         for (const id of ids) {
           const m = files.get(id)
           if (m && isVisible(m)) next[id] = readFile(m)
           else delete next[id]
+          if (m && !isVisible(m) && m.get('createdAt')) trash[id] = { ...readFile(m), deletedAt: deletedAtOf(m) }
+          else delete trash[id]
         }
-        data.current = { ...data.current, files: next }
+        data.current = { ...data.current, files: next, trash }
         dispatch({ t: 'data', ...data.current })
       }
       const onFolders = () => {
@@ -398,12 +401,21 @@ export function useVault() {
         const folders = foldersOf(d)
         ;[...folders.keys()].forEach((p) => !s.folders.includes(p) && folders.delete(p))
         s.folders.forEach((p) => folders.set(p, true))
+        for (const f of Object.values(s.trash ?? {})) {
+          if (s.files[f.id]) continue
+          writeFile(d, f)
+          deleteFile(d, f.id, f.deletedAt)
+        }
       })
       dispatch({ t: 'ui', ui: { openTabs: s.openTabs ?? [], activeTab: s.activeTab ?? null, theme: s.theme ?? stateRef.current.theme } })
     }
     return {
       patch: (id: string, patch: Partial<VaultFile>) => edit((d) => patchFile(d, id, patch)),
       remove: (id: string) => edit((d) => deleteFile(d, id)),
+      restore: (id: string) => edit((d) => restoreFile(d, id)),
+      restoreAll: () => edit((d) => {
+        for (const id of Object.keys(readVault(d).trash)) restoreFile(d, id)
+      }),
       open: (id: string, newTab = false) => dispatch({ t: 'open', id, newTab }),
       closeTab: (id: string) => dispatch({ t: 'closeTab', id }),
       addFolder: (path: string) => edit((d) => foldersOf(d).set(path, true)),

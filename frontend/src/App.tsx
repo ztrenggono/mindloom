@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from 'react'
-import { Files, Search, Hash, Network, Command as CommandIcon, FilePlus, Upload, Sun, Moon, RotateCcw, X, PanelLeft, PanelRight, Download } from 'lucide-react'
+import { Files, Search, Hash, Network, Command as CommandIcon, FilePlus, Upload, Sun, Moon, RotateCcw, X, PanelLeft, PanelRight, Download, Trash2 } from 'lucide-react'
 import { useVault } from './store'
 import { GRAPH_TAB, type DiagramType, type VaultState } from './types'
 import { Sidebar, type SideView } from './components/Sidebar'
@@ -184,6 +184,7 @@ export default function App() {
     { id: 'search', name: 'Search in all notes', hotkey: 'Ctrl Shift F', run: () => (setSide('search'), setLeftOpen(true)) },
     { id: 'left', name: 'Toggle left sidebar', run: () => setLeftOpen((o) => !o) },
     { id: 'right', name: 'Toggle right sidebar', run: () => setRightOpen((o) => !o) },
+    { id: 'trash', name: 'Open Trash', run: () => { setSide('trash'); setLeftOpen(true) } },
     { id: 'theme', name: 'Toggle light / dark theme', run: () => vault.setTheme(state.theme === 'dark' ? 'light' : 'dark') },
     { id: 'import', name: 'Import files (.md, .eraser, Mermaid .mmd, backup .json)', run: () => importRef.current?.click() },
     { id: 'export', name: 'Export vault backup (.json)', run: exportVault },
@@ -309,6 +310,12 @@ export default function App() {
           </button>
           <button className="icon-btn" data-tip="Toggle theme" aria-label="Toggle theme" onClick={() => vault.setTheme(state.theme === 'dark' ? 'light' : 'dark')}>
             {state.theme === 'dark' ? <Sun size={18} /> : <Moon size={18} />}
+          </button>
+          <button className={'icon-btn' + (leftOpen && side === 'trash' ? ' on' : '')} data-tip="Trash" aria-label="Trash" aria-pressed={leftOpen && side === 'trash'} onClick={() => {
+            if (leftOpen && side === 'trash') setLeftOpen(false)
+            else { setSide('trash'); setLeftOpen(true) }
+          }}>
+            <Trash2 size={18} />
           </button>
           <button className="icon-btn" data-tip="Reset to sample vault" aria-label="Reset to sample vault" onClick={() => confirm('Delete every note and restore the samples?') && vault.reset()}>
             <RotateCcw size={18} />

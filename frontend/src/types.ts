@@ -29,7 +29,10 @@ export interface VaultFile {
   updatedAt: number
 }
 
+export type TrashedFile = VaultFile & { deletedAt: number }
+
 export interface VaultState {
+  trash?: Record<string, TrashedFile>
   files: Record<string, VaultFile>
   folders: string[]
   openTabs: string[]

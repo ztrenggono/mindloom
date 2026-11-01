@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import * as Y from 'yjs'
 import type { VaultFile } from '../types'
 import { mapIndex } from './caret'
-import { deleteFile, deletedAtOf, filesOf, importDoc, importFiles, patchFile, readVault, setText, writeFile } from './vaultDoc'
+import { deleteFile, deletedAtOf, filesOf, importDoc, importFiles, patchFile, readVault, restoreFile, foldersOf, setText, writeFile } from './vaultDoc'
 
 const note = (id: string, extra: Partial<VaultFile> = {}): VaultFile => ({
   id,
@@ -193,5 +193,59 @@ describe('mapIndex', () => {
     expect(mapIndex('hello world', 'hello world!', 6)).toBe(6)
     expect(mapIndex('hello world', 'world', 8)).toBe(2)
     expect(mapIndex('hello world', 'hello', 8)).toBe(5)
+  })
+})
+
+describe('Trash and Restore', () => {
+  it('restores complete content, folders and the same text identity after reload', () => {
+    const a = new Y.Doc()
+    const f = note('n', { folder: 'Project/Design', diagrams: [{ id: 'd', title: 'D', type: 'erd', code: 'users' }], whiteboard: [{ id: 'shape' }], whiteboardFiles: { img: { dataURL: 'data:' } } })
+    writeFile(a, f)
+    deleteFile(a, 'n', 100)
+    expect(readVault(a).files.n).toBeUndefined()
+    expect(readVault(a).trash.n).toEqual({ ...f, deletedAt: 100 })
+    const b = new Y.Doc()
+    Y.applyUpdate(b, Y.encodeStateAsUpdate(a))
+    const text = filesOf(b).get('n')!.get('doc')
+    restoreFile(b, 'n', 50)
+    expect(readVault(b).trash).toEqual({})
+    expect(readVault(b).files.n).toEqual({ ...f, updatedAt: 101 })
+    expect(filesOf(b).get('n')!.get('doc')).toBe(text)
+    expect(foldersOf(b).has('Project/Design')).toBe(true)
+  })
+
+  it('synchronizes restores and later deletes across browsers', () => {
+    const [a, b] = pair(note('n'))
+    deleteFile(a, 'n', 100)
+    exchange(a, b)
+    restoreFile(b, 'n', 110)
+    exchange(a, b)
+    expect(readVault(a).files.n).toEqual(readVault(b).files.n)
+    expect(readVault(a).trash).toEqual({})
+    deleteFile(a, 'n', 120)
+    exchange(a, b)
+    expect(readVault(b).trash.n.deletedAt).toBe(120)
+  })
+
+  it('keeps deleted content when joining a server for the first time', () => {
+    const a = new Y.Doc()
+    writeFile(a, note('n'))
+    deleteFile(a, 'n', 100)
+    const b = new Y.Doc()
+    importDoc(b, a)
+    expect(readVault(b).trash.n.doc).toBe('# n\n')
+    restoreFile(b, 'n', 101)
+    expect(readVault(b).files.n.doc).toBe('# n\n')
+  })
+
+  it('avoids duplicate visible titles and does not offer legacy empty tombstones', () => {
+    const a = new Y.Doc()
+    writeFile(a, note('n', { title: 'Design' }))
+    deleteFile(a, 'n', 100)
+    writeFile(a, note('other', { title: 'design' }))
+    restoreFile(a, 'n', 101)
+    expect(readVault(a).files.n.title).toBe('Design (restored 1)')
+    importFiles(a, [], { deletes: { legacy: 100 } })
+    expect(readVault(a).trash.legacy).toBeUndefined()
   })
 })

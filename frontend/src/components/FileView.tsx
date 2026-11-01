@@ -166,10 +166,10 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
                   className="menu-item danger"
                   onClick={() => {
                     setMenu(false)
-                    if (confirm(`Delete "${file.title}"?`)) vault.remove(file.id)
+                    if (confirm(`Move "${file.title}" to Trash?`)) vault.remove(file.id)
                   }}
                 >
-                  <Trash2 size={14} /> Delete note
+                  <Trash2 size={14} /> Move to Trash
                 </button>
               </div>
             )}
