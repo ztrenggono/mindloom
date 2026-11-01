@@ -47,6 +47,7 @@ function stripCode(doc: string) {
 }
 
 export function findByTitle(files: Record<string, VaultFile>, title: string) {
+  if (title.startsWith('note:')) return files[title.slice(5)]
   const t = title.trim().toLowerCase()
   return Object.values(files).find((f) => f.title.toLowerCase() === t)
 }
@@ -54,7 +55,7 @@ export function findByTitle(files: Record<string, VaultFile>, title: string) {
 export function backlinks(files: Record<string, VaultFile>, target: VaultFile) {
   const t = target.title.toLowerCase()
   return Object.values(files).filter(
-    (f) => f.id !== target.id && fileLinks(f).some((l) => l.toLowerCase() === t),
+    (f) => f.id !== target.id && fileLinks(f).some((l) => l.toLowerCase() === t || findByTitle(files, l)?.id === target.id),
   )
 }
 

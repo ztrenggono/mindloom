@@ -1,3 +1,26 @@
+export interface CommentAnchor {
+  field: string
+  start: number
+  end: number
+  quote: string
+  currentText?: string
+  missing?: boolean
+}
+
+export interface CommentReply {
+  id: string
+  author: string
+  body: string
+  createdAt: number
+}
+
+export interface CommentThread extends CommentReply {
+  anchor: CommentAnchor
+  resolvedAt?: number
+  resolved: boolean
+  replies: CommentReply[]
+}
+
 export type DiagramType = 'erd' | 'flowchart' | 'sequence' | 'cloud' | 'mindmap'
 
 export interface Diagram {
@@ -23,6 +46,7 @@ export interface VaultFile {
   whiteboard: unknown[] | null
   /** Images used on the whiteboard, keyed by Excalidraw file id. */
   whiteboardFiles?: Record<string, unknown>
+  comments?: CommentThread[]
   layout: Layout
   pinned?: boolean
   createdAt: number

@@ -15,6 +15,7 @@
  * marks a note: an edit made after the delete (e.g. offline) keeps the note, so no work is lost.
  */
 import fastDiff from 'fast-diff'
+import { addThread, readThreads } from './comments'
 import * as Y from 'yjs'
 import type { Diagram, TrashedFile, VaultFile } from '../types'
 
@@ -74,6 +75,8 @@ export function readFile(m: YFile): VaultFile {
     createdAt: (m.get('createdAt') as number) ?? 0,
     updatedAt: updatedAtOf(m),
   }
+  const comments = m.doc ? readThreads(m.doc, f.id) : []
+  if (comments.length) f.comments = comments
   if (wbFiles?.size) f.whiteboardFiles = wbFiles.toJSON()
   if (m.get('pinned')) f.pinned = true
   return f
@@ -149,6 +152,7 @@ export function writeFile(doc: Y.Doc, f: VaultFile) {
   m.set('whiteboardFiles', new Y.Map(Object.entries(f.whiteboardFiles ?? {})))
   m.set('times', new Y.Map<number>())
   filesOf(doc).set(f.id, m)
+  for (const thread of f.comments ?? []) addThread(doc, f.id, thread)
 }
 
 /**
@@ -161,6 +165,12 @@ export function patchFile(doc: Y.Doc, id: string, patch: Partial<VaultFile>) {
   let changed = false
   for (const [k, v] of Object.entries(patch) as [keyof VaultFile, unknown][]) {
     if (k === 'id' || k === 'updatedAt') continue
+    if (k === 'comments') {
+      for (const thread of (v as VaultFile['comments']) ?? []) {
+        addThread(doc, id, thread)
+      }
+      continue
+    }
     if (k === 'doc') changed = setText(m.get('doc') as Y.Text, v as string) || changed
     else if (k === 'diagrams') changed = patchDiagrams(m, v as Diagram[]) || changed
     else if (k === 'whiteboard') changed = patchWhiteboard(m, v as Element[] | null, doc.clientID) || changed
@@ -291,7 +301,10 @@ export function importFiles(doc: Y.Doc, files: VaultFile[], { onlyNewer = false,
     const m = map.get(f.id)
     if (deletes[f.id] !== undefined && deletes[f.id] >= f.updatedAt) continue
     if (!m) writeFile(doc, f)
-    else if (!onlyNewer || f.updatedAt > updatedAtOf(m)) patchFile(doc, f.id, f)
+    else {
+      if (!onlyNewer || f.updatedAt > updatedAtOf(m)) patchFile(doc, f.id, f)
+      else for (const thread of f.comments ?? []) addThread(doc, f.id, thread)
+    }
   }
   for (const [id, at] of Object.entries(deletes)) {
     // A deleted note usually has no copy left, but its tombstone must stay: a later import
@@ -310,7 +323,11 @@ export function importDoc(to: Y.Doc, from: Y.Doc) {
     if (isVisible(m)) files.push(readFile(m))
     else {
       // Preserve recoverable content when a provisional vault first joins the server.
-      if (!filesOf(to).has(id)) writeFile(to, readFile(m))
+      const existing = filesOf(to).get(id)
+      const file = readFile(m)
+      if (!existing) writeFile(to, file)
+      else if (file.updatedAt > updatedAtOf(existing)) patchFile(to, id, file)
+      else for (const thread of file.comments ?? []) addThread(to, id, thread)
       deletes[id] = deletedAtOf(m)
     }
   })

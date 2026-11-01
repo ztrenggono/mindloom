@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
-import { BookOpen, Check, Columns2, Download, FileText, Link, MoreHorizontal, PanelRight, Pencil, Pin, Trash2 } from 'lucide-react'
-import type { Layout, VaultFile } from '../types'
+import { BookOpen, Check, Columns2, Download, FileText, Link, MoreHorizontal, PanelRight, Pencil, Pin, Trash2, MessageSquare } from 'lucide-react'
+import type { CommentAnchor, Layout, VaultFile } from '../types'
 import type { Vault } from '../store'
+import { CommentsPanel } from './CommentsPanel'
 import { NoteEditor } from './NoteEditor'
 import { CanvasPanel } from './CanvasPanel'
 import { download } from '../dsl/DiagramView'
@@ -28,6 +29,24 @@ const LAYOUTS: { id: Layout; label: string; icon: typeof FileText }[] = [
 ]
 
 export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram, setActiveDiagram, onOpenLink, onTag, scrollToLine }: Props) {
+  const [commentsOpen, setCommentsOpen] = useState(false)
+  const [commentDraft, setCommentDraft] = useState<CommentAnchor | null>(null)
+  const [commentJump, setCommentJump] = useState<{ line: number; n: number }>()
+  const [diagramJump, setDiagramJump] = useState<{ diagramId: string; line: number; n: number }>()
+  const startComment = (anchor: CommentAnchor) => { setCommentDraft(anchor); setCommentsOpen(true) }
+  const jumpComment = (anchor: CommentAnchor) => {
+    const text = anchor.field === 'doc' ? file.doc : file.diagrams.find((d) => d.id === anchor.field)?.code
+    if (text === undefined || anchor.missing) return
+    const line = text.slice(0, anchor.start).split('\n').length - 1
+    if (anchor.field === 'doc') {
+      if (file.layout === 'canvas') vault.patch(file.id, { layout: 'both' })
+      setMode('edit'); setCommentJump({ line, n: Date.now() })
+    } else {
+      if (file.layout === 'doc') vault.patch(file.id, { layout: 'both' })
+      setActiveDiagram(anchor.field); setDiagramJump({ diagramId: anchor.field, line: line + 1, n: Date.now() })
+    }
+    setCommentsOpen(false)
+  }
   const [split, setSplit] = useState(0.45)
   const [menu, setMenu] = useState(false)
   const [copied, setCopied] = useState(false)
@@ -91,7 +110,8 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
           onChange={(d) => vault.patch(file.id, { doc: d })}
           onOpenLink={onOpenLink}
           onTag={onTag}
-          scrollToLine={scrollToLine}
+          scrollToLine={commentJump && (!scrollToLine || commentJump.n > scrollToLine.n) ? commentJump : scrollToLine}
+          onComment={startComment}
           carets={vault.caretsIn(file.id, 'doc')}
           onCursor={(i) => vault.setCursor(file.id, 'doc', i)}
         />
@@ -102,6 +122,8 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
   const canvas = (
     <CanvasPanel
       file={file}
+      onComment={startComment}
+      jumpTo={diagramJump}
       files={vault.state.files}
       titles={allTitles}
       onOpenLink={onOpenLink}
@@ -132,6 +154,7 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
           ))}
         </div>
         <div className="view-actions">
+          <button className={'icon-btn' + (commentsOpen ? ' on' : '')} title="Comments" aria-label="Comments" onClick={() => setCommentsOpen((open) => !open)}><MessageSquare size={16} /><span>{(file.comments ?? []).filter((t) => !t.resolved).length || ''}</span></button>
           {here.length > 0 && (
             <div className="peers" aria-label={`Also here: ${here.map((p) => p.name).join(', ')}`}>
               {here.slice(0, 4).map((p) => (
@@ -176,6 +199,7 @@ export function FileView({ file, vault, mode, setMode, allTitles, activeDiagram,
           </div>
         </div>
       </div>
+      {commentsOpen && <CommentsPanel file={file} vault={vault} draft={commentDraft} onCancelDraft={() => setCommentDraft(null)} onClose={() => setCommentsOpen(false)} onJump={jumpComment} />}
       <div className="view-body" ref={body}>
         {file.layout === 'doc' && doc}
         {file.layout === 'canvas' && canvas}
