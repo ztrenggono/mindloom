@@ -6,7 +6,7 @@ import { extractTags } from '../lib/links'
 import { parseQuery, search, type Hit } from '../lib/search'
 import { TYPE_ICON } from './CanvasPanel'
 
-export type SideView = 'files' | 'search' | 'tags'
+export type SideView = 'files' | 'search' | 'tags' | 'trash'
 
 interface Props {
   vault: Vault
@@ -100,7 +100,7 @@ export function Sidebar({ vault, view, query, setQuery, onOpenHit }: Props) {
       onDoubleClick={() => setRenaming(f.id)}
       onContextMenu={(e) => {
         e.preventDefault()
-        if (confirm(`Delete "${f.title}"?`)) vault.remove(f.id)
+        if (confirm(`Move "${f.title}" to Trash?`)) vault.remove(f.id)
       }}
     >
       {f.diagrams.length ? <LayoutPanelLeft size={14} className="muted" /> : <FileText size={14} className="muted" />}
@@ -142,7 +142,7 @@ export function Sidebar({ vault, view, query, setQuery, onOpenHit }: Props) {
               }}
               onContextMenu={(e) => {
                 e.preventDefault()
-                if (confirm(`Delete folder "${sub.path}" and every note in it?`)) vault.deleteFolder(sub.path)
+                if (confirm(`Move every note in "${sub.path}" to Trash and remove this folder?`)) vault.deleteFolder(sub.path)
               }}
             >
               <ChevronDown size={14} className={'chev' + (open ? '' : ' closed')} />
@@ -156,6 +156,7 @@ export function Sidebar({ vault, view, query, setQuery, onOpenHit }: Props) {
     </>
   )
 
+  if (view === 'trash') return <TrashView vault={vault} />
   if (view === 'search') return <SearchView vault={vault} query={query} setQuery={setQuery} onOpenHit={onOpenHit} />
   if (view === 'tags') return <TagsView vault={vault} onPick={(t) => setQuery('#' + t)} />
 
@@ -263,6 +264,33 @@ function TagsView({ vault, onPick }: { vault: Vault; onPick: (t: string) => void
           <span className="count">{n}</span>
         </div>
       ))}
+    </div>
+  )
+}
+
+function TrashView({ vault }: { vault: Vault }) {
+  const [filter, setFilter] = useState('')
+  const all = Object.values(vault.state.trash ?? {}).sort((a, b) => b.deletedAt - a.deletedAt)
+  const files = all.filter((f) => `${f.title} ${f.folder}`.toLowerCase().includes(filter.toLowerCase()))
+  return (
+    <div className="sidebar-inner">
+      <div className="pane-title">Trash · {all.length}</div>
+      <div className="search-box">
+        <Search size={14} />
+        <input aria-label="Search Trash" placeholder="Search Trash…" value={filter} onChange={(e) => setFilter(e.target.value)} />
+      </div>
+      {all.length > 0 && <div className="nav-header"><button className="btn" onClick={() => vault.restoreAll()}>Restore all</button></div>}
+      {all.length === 0 && <div className="empty small">Trash is empty. Deleted notes will appear here.</div>}
+      {all.length > 0 && files.length === 0 && <div className="empty small">No matching notes.</div>}
+      {files.map((f) => (
+        <div className="search-result" key={f.id}>
+          <strong>{f.title}</strong>
+          <div className="muted">{f.folder || 'Vault root'}</div>
+          <div className="muted">Deleted {new Date(f.deletedAt).toLocaleString()}</div>
+          <button className="btn" aria-label={`Restore ${f.title}`} onClick={() => vault.restore(f.id)}>Restore</button>
+        </div>
+      ))}
+      <div className="sidebar-hint">Restore keeps diagrams and whiteboards. Notes with an existing title receive a restored suffix.</div>
     </div>
   )
 }

@@ -16,7 +16,7 @@
  */
 import fastDiff from 'fast-diff'
 import * as Y from 'yjs'
-import type { Diagram, VaultFile } from '../types'
+import type { Diagram, TrashedFile, VaultFile } from '../types'
 
 type YFile = Y.Map<unknown>
 /**
@@ -96,12 +96,14 @@ function sortElements(els: Element[]) {
   return els.sort((a, b) => ((a.index ?? '') < (b.index ?? '') ? -1 : (a.index ?? '') > (b.index ?? '') ? 1 : a.id < b.id ? -1 : 1))
 }
 
-export function readVault(doc: Y.Doc): { files: Record<string, VaultFile>; folders: string[] } {
+export function readVault(doc: Y.Doc) {
+  const trash: Record<string, TrashedFile> = {}
   const files: Record<string, VaultFile> = {}
   filesOf(doc).forEach((m, id) => {
     if (isVisible(m)) files[id] = readFile(m)
+    else if (m.get('createdAt')) trash[id] = { ...readFile(m), deletedAt: deletedAtOf(m) }
   })
-  return { files, folders: [...foldersOf(doc).keys()].sort() }
+  return { files, trash, folders: [...foldersOf(doc).keys()].sort() }
 }
 
 /** Applies the smallest set of inserts and deletes that turns `text` into `next`. */
@@ -263,6 +265,21 @@ export function deleteFile(doc: Y.Doc, id: string, at = Date.now()) {
   stamp(doc, m, 'd', Math.max(at, updatedAtOf(m)))
 }
 
+/** Restores in place, retaining text identity and concurrent changes. */
+export function restoreFile(doc: Y.Doc, id: string, at = Date.now()) {
+  const m = filesOf(doc).get(id)
+  if (!m || isVisible(m) || !m.get('createdAt')) return
+  const base = (m.get('title') as string) || 'Untitled'
+  const titles = new Set(Object.values(readVault(doc).files).map((f) => f.title.toLowerCase()))
+  let title = base
+  let n = 1
+  while (titles.has(title.toLowerCase())) title = `${base} (restored ${n++})`
+  m.set('title', title)
+  stamp(doc, m, 'u', Math.max(at, deletedAtOf(m) + 1, updatedAtOf(m) + 1))
+  const folder = m.get('folder') as string
+  if (folder) foldersOf(doc).set(folder, true)
+}
+
 /**
  * Brings notes made outside this document (an older vault, or a copy started before this
  * browser reached the server) into it. With `onlyNewer`, a note replaces the document's copy
@@ -291,7 +308,11 @@ export function importDoc(to: Y.Doc, from: Y.Doc) {
   const deletes: Record<string, number> = {}
   filesOf(from).forEach((m, id) => {
     if (isVisible(m)) files.push(readFile(m))
-    else deletes[id] = deletedAtOf(m)
+    else {
+      // Preserve recoverable content when a provisional vault first joins the server.
+      if (!filesOf(to).has(id)) writeFile(to, readFile(m))
+      deletes[id] = deletedAtOf(m)
+    }
   })
   importFiles(to, files, { onlyNewer: true, deletes })
   for (const path of foldersOf(from).keys()) foldersOf(to).set(path, true)

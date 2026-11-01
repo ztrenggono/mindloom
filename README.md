@@ -19,6 +19,8 @@ explain them.
   architecture, DevOps, product processes, AI and data, security, and mobile.
 - **Whiteboard** (Excalidraw) for free drawing, with icon and image upload.
 - **Three layouts per note**: Document, Document + Canvas, or Canvas only.
+- **Trash and restore**: deleted notes stay in Trash, including their diagrams and whiteboards. Open
+  Trash below the theme button to restore one note or all notes to their original folders.
 - **Compare versions** of a diagram against a saved snapshot, and present a diagram step by step.
 
 **Find, move and share**
